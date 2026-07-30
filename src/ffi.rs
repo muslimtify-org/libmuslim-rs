@@ -39,6 +39,13 @@ pub(crate) enum AsrSchool {
     Hanafi = 2,
 }
 
+/// Mirror of the C `HighLatMethod` enum.
+///
+/// Deliberately not re-exported through the safe API: the C library declares
+/// this enum but never reads it, so no value here can change a calculation.
+/// It is kept so `enum_discriminants_match_c` keeps pinning the values against
+/// the header — if upstream later adds a `high_lat_method` field to
+/// `MethodParams`, the ABI half is already verified.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HighLatMethod {

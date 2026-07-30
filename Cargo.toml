@@ -1,7 +1,41 @@
 [package]
-name = "prayertime-rs"
+name = "libmuslim-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Safe, idiomatic Rust bindings for libmuslim: astronomical prayer-time calculations supporting 21 international calculation standards."
+documentation = "https://docs.rs/libmuslim-rs"
+homepage = "https://muslimtify.vercel.app"
+repository = "https://github.com/muslimtify-org/libmuslim-rs"
+readme = "README.md"
+license = "MIT"
+keywords = ["islam", "prayer-times", "muslim", "salah", "astronomy"]
+categories = ["api-bindings", "external-ffi-bindings", "date-and-time", "science"]
+
+# The vendored C sources are compiled by build.rs, so they must ship inside the
+# published .crate. An explicit list also keeps development scratch out of it.
+include = [
+    "/Cargo.toml",
+    "/build.rs",
+    "/src",
+    "/include",
+    "/examples",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+
+# Declares ownership of the native `prayertimes` symbols. Cargo then refuses a
+# dependency graph containing two crates that link them, which would otherwise
+# fail at link time on duplicate definitions.
+links = "prayertimes"
 
 [build-dependencies]
 cc = "1.4.0"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[package.metadata.docs.rs]
+all-features = true

@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use prayertime_rs::{
+//! use libmuslim_rs::{
 //!     calculate, CalculationMethod, Coordinates, Date, MethodParams, UtcOffset,
 //! };
 //!
@@ -20,7 +20,7 @@
 //!
 //! let times = calculate(date, coordinates, offset, &params)?;
 //! assert_eq!(times.fajr.format_hm().len(), 5);
-//! # Ok::<(), prayertime_rs::Error>(())
+//! # Ok::<(), libmuslim_rs::Error>(())
 //! ```
 #![warn(missing_docs)]
 
@@ -200,21 +200,19 @@ pub enum AsrSchool {
     Hanafi,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// A method for adjusting prayer times at high latitudes.
-pub enum HighLatitudeMethod {
-    /// Do not apply a high-latitude adjustment.
-    None,
-    /// Use the middle of the night.
-    MiddleOfNight,
-    /// Use one seventh of the night.
-    OneSeventh,
-    /// Use an angle-proportional portion of the night.
-    AngleBased,
-}
+// The C header declares a `HighLatMethod` enum, but it is not a field of
+// `MethodParams` and `calculate_prayer_times` never reads it: the high-latitude
+// fallback is hardcoded to the angle-based rule. No selector is exposed here
+// rather than publishing an enum that cannot affect a calculation. The
+// discriminants are still asserted against C in `ffi`, so a future upstream
+// release that wires this up can be surfaced without re-deriving them.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// The convention used to determine midnight.
+///
+/// Retained because it is a real field of the C `MethodParams` struct, but the
+/// C calculation does not currently read it, and no midnight time is returned.
+/// `Standard` is the only value the C header defines.
 pub enum MidnightMode {
     /// Use the standard sunset-to-sunrise midpoint.
     Standard,
@@ -293,28 +291,6 @@ impl From<ffi::AsrSchool> for AsrSchool {
         match school {
             ffi::AsrSchool::Standard => Self::Standard,
             ffi::AsrSchool::Hanafi => Self::Hanafi,
-        }
-    }
-}
-
-impl From<HighLatitudeMethod> for ffi::HighLatMethod {
-    fn from(method: HighLatitudeMethod) -> Self {
-        match method {
-            HighLatitudeMethod::None => Self::None,
-            HighLatitudeMethod::MiddleOfNight => Self::MiddleOfNight,
-            HighLatitudeMethod::OneSeventh => Self::OneSeventh,
-            HighLatitudeMethod::AngleBased => Self::AngleBased,
-        }
-    }
-}
-
-impl From<ffi::HighLatMethod> for HighLatitudeMethod {
-    fn from(method: ffi::HighLatMethod) -> Self {
-        match method {
-            ffi::HighLatMethod::None => Self::None,
-            ffi::HighLatMethod::MiddleOfNight => Self::MiddleOfNight,
-            ffi::HighLatMethod::OneSeventh => Self::OneSeventh,
-            ffi::HighLatMethod::AngleBased => Self::AngleBased,
         }
     }
 }

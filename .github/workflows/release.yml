@@ -1,0 +1,155 @@
+name: Release
+
+# Publishing to crates.io is deliberately NOT automated. This workflow only
+# builds artifacts and attaches them to a GitHub Release; `cargo publish` is
+# run by hand. See RELEASING.md for the manual steps.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  verify:
+    name: Verify tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      # A tag that disagrees with Cargo.toml would produce a release whose
+      # artifacts are named for a version that was never built. Fail before
+      # anything is published rather than after.
+      - name: Check tag matches Cargo.toml version
+        id: version
+        run: |
+          set -euo pipefail
+          manifest="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[0].version')"
+          tag="${GITHUB_REF_NAME#v}"
+          echo "Cargo.toml: $manifest"
+          echo "Git tag:    $tag"
+          if [ "$manifest" != "$tag" ]; then
+            echo "::error::Tag v$tag does not match Cargo.toml version $manifest"
+            exit 1
+          fi
+          echo "version=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: cargo test
+        run: cargo test --locked --all-targets --all-features
+
+      - name: cargo test --doc
+        run: cargo test --locked --doc --all-features
+
+      # The .crate tarball is the artifact consumers actually install, so it is
+      # attached to the release as a checkable record of what was published.
+      - name: cargo package
+        run: cargo package --locked --all-features
+
+      - name: Upload .crate
+        uses: actions/upload-artifact@v4
+        with:
+          name: crate-package
+          path: target/package/*.crate
+          if-no-files-found: error
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      # This crate is a library, so the `basic` example is the only executable
+      # it produces. Shipping it gives each platform a runnable artifact that
+      # proves the vendored C compiled and linked on that toolchain.
+      - name: Build example
+        run: cargo build --locked --release --all-features --example basic --target ${{ matrix.target }}
+
+      - name: Stage archive
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="libmuslim-rs-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "$name"
+          cp README.md LICENSE CHANGELOG.md "$name/"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            cp "target/${{ matrix.target }}/release/examples/basic.exe" "$name/"
+            7z a "$name.zip" "$name" > /dev/null
+            echo "asset=$name.zip" >> "$GITHUB_OUTPUT"
+          else
+            cp "target/${{ matrix.target }}/release/examples/basic" "$name/"
+            tar czf "$name.tar.gz" "$name"
+            echo "asset=$name.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.target }}
+          path: ${{ steps.stage.outputs.asset }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to create the release and upload assets to it.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          # Written outside the directory first so the glob cannot pick up the
+          # checksum file itself.
+          sha256sum -- * > "${RUNNER_TEMP}/SHA256SUMS"
+          mv "${RUNNER_TEMP}/SHA256SUMS" SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.verify.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*

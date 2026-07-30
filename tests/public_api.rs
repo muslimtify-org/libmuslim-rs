@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use prayertime_rs::{
-    AsrSchool, CalculationMethod, Coordinates, Date, HighLatitudeMethod, MethodParams,
-    MidnightMode, PrayerTime, PrayerTimes, UtcOffset, calculate, constants,
+use libmuslim_rs::{
+    AsrSchool, CalculationMethod, Coordinates, Date, MethodParams, MidnightMode, PrayerTime,
+    PrayerTimes, UtcOffset, calculate, constants,
 };
 
 #[test]
@@ -37,6 +37,5 @@ fn external_consumer_can_use_the_complete_safe_surface() {
     assert!(values.iter().all(|time| time.decimal_hours().is_finite()));
     assert!(values.iter().all(|time| time.format_hm().len() == 5));
 
-    let _available_but_not_consumed_by_c = HighLatitudeMethod::AngleBased;
     assert_eq!(constants::DHUHA_ALTITUDE, 4.3);
 }

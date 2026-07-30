@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same branch or PR makes the in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Keep CI output focused on failures rather than progress bars.
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The crate compiles vendored C, so every host toolchain is a distinct
+        # risk: gcc, clang, and MSVC each need to accept the C11 sources.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}
+      - name: cargo test
+        run: cargo test --locked --all-targets --all-features
+      # `--all-targets` skips doctests, and the crate-level example in lib.rs is
+      # the documented entry point, so it gets its own run.
+      - name: cargo test --doc
+        run: cargo test --locked --doc --all-features
+      - name: Run the example
+        run: cargo run --locked --example basic
+
+  docs:
+    name: Rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo doc
+        env:
+          # Broken intra-doc links and undocumented public items fail the build
+          # here, which is what docs.rs would otherwise surface after publish.
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --no-deps --all-features
+
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[0].rust_version')"
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::package.rust-version is not set in Cargo.toml"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv-${{ steps.msrv.outputs.version }}
+      # `check` rather than `test`: the declared MSRV is a promise about
+      # consumers compiling the crate, not about the dev-time test harness.
+      # `--locked` matters most here: without it a dependency could resolve to a
+      # release requiring a newer rustc, failing this job for a reason that has
+      # nothing to do with the change under test.
+      - name: cargo check
+        run: cargo check --locked --all-features
+
+  undefined-behavior:
+    name: UndefinedBehaviorSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ubsan
+      # The safe Rust surface is a thin wrapper over C floating-point and date
+      # arithmetic. UBSan instruments that C code and aborts on overflow,
+      # misaligned access, or invalid casts that plain tests would not surface.
+      - name: cargo test under UBSan
+        env:
+          CFLAGS: -fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer
+          # rustc drives the link, and `-fsanitize=undefined` alone does not pull
+          # in the runtime there, so the gcc UBSan library is named explicitly.
+          # Without `-lubsan` the link fails on undefined `__ubsan_handle_*`.
+          RUSTFLAGS: -C link-arg=-fsanitize=undefined -C link-arg=-lubsan
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: cargo test --locked --all-targets --all-features
+
+  supply-chain:
+    name: Advisories and licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Catches publish-time-only failures: metadata gaps, and vendored C
+      # sources missing from the `include` list so the packaged crate cannot
+      # build. Cheaper to learn here than after an irreversible publish.
+      - name: cargo publish --dry-run
+        run: cargo publish --locked --dry-run --all-features
+      - name: List packaged files
+        run: cargo package --locked --list --all-features
