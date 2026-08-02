@@ -1,6 +1,7 @@
 //! Safe, idiomatic Rust bindings for libmuslim.
 //!
-//! The currently supported library is available through [`prayertimes`].
+//! Prayer-time calculations are available through [`prayertimes`], with
+//! optional host-backed IANA time-zone resolution through [`timezone`].
 //!
 //! The old root-level prayer-times API was intentionally removed. Import its
 //! items from [`prayertimes`] instead.
@@ -13,3 +14,6 @@
 
 /// Astronomical prayer-time calculations backed by `prayertimes.h`.
 pub mod prayertimes;
+
+/// Host-backed IANA time-zone resolution backed by `timezone.h`.
+pub mod timezone;

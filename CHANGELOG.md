@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Safe `timezone` bindings for resolving DST-aware IANA UTC offsets and
+  detecting the host system time zone through the vendored `timezone.h`.
+
 ### Changed
 
 - **Breaking:** the Rust library is now imported as `libmuslim`, and the
