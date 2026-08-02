@@ -20,6 +20,7 @@ fn print_times(label: &str, times: &PrayerTimes) {
 fn main() -> Result<(), Box<dyn Error>> {
     let date = Date::new(2026, 7, 30)?;
     let coordinates = Coordinates::new(-6.2, 106.8)?;
+    println!("Calculating prayer times for {date:?} at {coordinates:?}");
 
     // Resolve the offset through the host timezone database. Supplying an
     // explicit UtcOffset remains available when the offset is already known.
