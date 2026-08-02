@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the Rust library is now imported as `libmuslim`, and the
+  prayer-times API moved from the crate root to `libmuslim::prayertimes`.
+
 ## [0.1.0] - 2026-07-30
 
 Initial release.

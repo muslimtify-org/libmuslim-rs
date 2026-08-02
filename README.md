@@ -6,10 +6,14 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue)](https://releases.rs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Libmuslim-rs is Rust binding for [libmuslim](https://github.com/muslimtify-org/libmuslim), a collection of muslim useful tools and library written in C wrapping into safe Rust idiomatic code convention, this library covers:
+Libmuslim-rs provides safe, idiomatic Rust bindings for
+[libmuslim](https://github.com/muslimtify-org/libmuslim), a collection of
+Muslim-focused C libraries:
 
-1. prayertimes.h: an Astronomical calculations for prayer times, support 21 international standard calculation
-2. hijri.h: A from-scratch astronomical Hijri (Islamic lunar) calendar library (not yet)
+1. `prayertimes.h`: astronomical prayer-time calculations with 21 international
+   calculation standards (supported)
+2. `hijri.h`: astronomical Hijri calendar calculations (not yet supported)
+3. `timezone.h`: time-zone support (not yet supported)
 
 for more information, about usage and API documentation, please visit [muslimtify](https://muslimtify.vercel.app) documentation website
 
@@ -28,7 +32,8 @@ or run this command in your terminal:
 cargo add libmuslim-rs
 ```
 
-The crate name is `libmuslim-rs`; the import path is `libmuslim_rs`.
+The Cargo package name is `libmuslim-rs`, while the Rust library import name is
+`libmuslim`.
 
 ### Requirements
 
@@ -41,7 +46,7 @@ The crate name is `libmuslim-rs`; the import path is `libmuslim_rs`.
 ## Usage
 
 ```rust
-use libmuslim_rs::{
+use libmuslim::prayertimes::{
     calculate, CalculationMethod, Coordinates, Date, Error, MethodParams, UtcOffset,
 };
 
