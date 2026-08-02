@@ -69,6 +69,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Resolve the offset at the current time
+
+This is the Rust equivalent of calling C's `time(NULL)` and passing the result
+through `parse_timezone_offset()`:
+
+```rust
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use libmuslim::prayertimes::{
+    CalculationMethod, Coordinates, Date, MethodParams, calculate,
+};
+use libmuslim::timezone::offset_at;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let when = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())?;
+    let offset = offset_at("Asia/Jakarta", when)?;
+
+    let params = MethodParams::for_method(CalculationMethod::Kemenag)?;
+    let times = calculate(
+        Date::new(2026, 7, 12)?,
+        Coordinates::new(-6.2088, 106.8456)?,
+        offset,
+        &params,
+    )?;
+
+    println!("Dhuhr {}", times.dhuhr.format_hm());
+    Ok(())
+}
+```
+
 The `timezone` module also provides `system_timezone()` for detecting the host
 zone. It relies on the operating system's timezone database (or Windows timezone
 APIs). The upstream C API returns `0.0` both for a real UTC offset and for an
