@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use libmuslim_rs::{
+use libmuslim::prayertimes::{
     AsrSchool, CalculationMethod, Coordinates, Date, MethodParams, MidnightMode, PrayerTimes,
     UtcOffset, calculate,
 };
