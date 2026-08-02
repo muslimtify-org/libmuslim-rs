@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use libmuslim_rs::{
+use libmuslim::prayertimes::{
     AsrSchool, CalculationMethod, Coordinates, Date, MethodParams, MidnightMode, PrayerTime,
     PrayerTimes, UtcOffset, calculate, constants,
 };
