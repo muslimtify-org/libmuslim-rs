@@ -51,9 +51,10 @@ Removed:
 - Modify: `src/lib.rs:1-27`
 - Modify: `Cargo.toml:1-39`
 - Modify: `tests/public_api.rs:1-7`
+- Modify: `examples/basic.rs:1-7`
 - Remove: `src/ffi.rs`
 
-- [ ] **Step 1: Change the external-consumer test to require the new namespace**
+- [x] **Step 1: Change the external-consumer test to require the new namespace**
 
 Replace the import at the top of `tests/public_api.rs` with:
 
@@ -66,13 +67,13 @@ use libmuslim::prayertimes::{
 };
 ```
 
-- [ ] **Step 2: Run the public API test and verify the new library name is not available yet**
+- [x] **Step 2: Run the public API test and verify the new library name is not available yet**
 
 Run: `cargo test --locked --test public_api`
 
 Expected: the command exits nonzero because the current Cargo library target is still named `libmuslim_rs`, so `libmuslim` cannot be resolved.
 
-- [ ] **Step 3: Move the implementation into the prayer-times module**
+- [x] **Step 3: Move the implementation into the prayer-times module**
 
 Run:
 
@@ -90,7 +91,7 @@ The move intentionally preserves the complete contents and history of both imple
 
 Keep `mod ffi;` unchanged; it now resolves to the adjacent `src/prayertimes/ffi.rs`.
 
-- [ ] **Step 4: Create the minimal crate root and enforce the breaking boundary**
+- [x] **Step 4: Create the minimal crate root and enforce the breaking boundary**
 
 Create `src/lib.rs` with exactly:
 
@@ -131,7 +132,7 @@ Update the doctest at the top of `src/prayertimes/mod.rs` to use the public modu
 //! ```
 ```
 
-- [ ] **Step 5: Give the Rust library target its public import name**
+- [x] **Step 5: Give the Rust library target its public import name**
 
 Add this immediately after the `[package]` metadata in `Cargo.toml`, before `[build-dependencies]`:
 
@@ -142,7 +143,9 @@ name = "libmuslim"
 
 Do not alter `package.name = "libmuslim-rs"`.
 
-- [ ] **Step 6: Format and verify the new API, ABI, and metadata**
+- [x] **Step 6: Format and verify the new API, ABI, and metadata**
+
+Per the user's Option A resolution after the first dispatch halted, this step also updates the `examples/basic.rs` import to `libmuslim::prayertimes` before running the all-targets test. This keeps the Task 1 commit buildable; the example edit is therefore no longer part of Task 2.
 
 Run: `cargo fmt --all`
 
@@ -160,7 +163,7 @@ Run: `cargo metadata --no-deps --format-version 1`
 
 Expected: exits zero and its JSON contains a package with `"name":"libmuslim-rs"` whose library target contains `"name":"libmuslim"`.
 
-- [ ] **Step 7: Commit the module boundary**
+- [x] **Step 7: Commit the module boundary**
 
 ```bash
 git add Cargo.toml src/lib.rs src/prayertimes tests/public_api.rs
@@ -171,24 +174,10 @@ git commit -m "refactor: namespace prayer times binding"
 ### Task 2: Update user-facing documentation and run the quality gate → verify: no `libmuslim_rs` import remains; the basic example uses `libmuslim::prayertimes`; formatting, tests, Clippy, rustdoc, and package dry-run all exit zero
 
 **Files:**
-- Modify: `examples/basic.rs:1-7`
 - Modify: `README.md:10-65`
 - Modify: `CHANGELOG.md:8`
 
-- [ ] **Step 1: Update the executable example import**
-
-Replace the import at the top of `examples/basic.rs` with:
-
-```rust
-use std::error::Error;
-
-use libmuslim::prayertimes::{
-    AsrSchool, CalculationMethod, Coordinates, Date, MethodParams, MidnightMode, PrayerTimes,
-    UtcOffset, calculate,
-};
-```
-
-- [ ] **Step 2: Update README coverage and usage**
+- [ ] **Step 1: Update README coverage and usage**
 
 Replace the introductory coverage list with:
 
@@ -220,7 +209,7 @@ use libmuslim::prayertimes::{
 
 Keep the remainder of the usage example unchanged.
 
-- [ ] **Step 3: Record the breaking change**
+- [ ] **Step 2: Record the breaking change**
 
 Under `## [Unreleased]` in `CHANGELOG.md`, add:
 
@@ -231,7 +220,7 @@ Under `## [Unreleased]` in `CHANGELOG.md`, add:
   prayer-times API moved from the crate root to `libmuslim::prayertimes`.
 ```
 
-- [ ] **Step 4: Verify documentation, example, and repository references**
+- [ ] **Step 3: Verify documentation, example, and repository references**
 
 Run: `rg -n "libmuslim_rs" src tests examples README.md Cargo.toml`
 
@@ -249,7 +238,7 @@ Run: `cargo fmt --all --check`
 
 Expected: exits zero.
 
-- [ ] **Step 5: Run the remaining complete quality gate**
+- [ ] **Step 4: Run the remaining complete quality gate**
 
 Run: `cargo test --locked --all-targets`
 
@@ -267,7 +256,7 @@ Run: `cargo publish --locked --dry-run --all-features --allow-dirty`
 
 Expected: exits zero and packages the working-tree version of `libmuslim-rs` successfully; `--allow-dirty` is required because the documentation edits are committed only after this gate passes.
 
-- [ ] **Step 6: Commit the user-facing migration**
+- [ ] **Step 5: Commit the user-facing migration**
 
 ```bash
 git add README.md CHANGELOG.md examples/basic.rs
