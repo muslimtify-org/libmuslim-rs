@@ -13,7 +13,7 @@ Muslim-focused C libraries:
 1. `prayertimes.h`: astronomical prayer-time calculations with 21 international
    calculation standards (supported)
 2. `hijri.h`: astronomical Hijri calendar calculations (not yet supported)
-3. `timezone.h`: time-zone support (not yet supported)
+3. `timezone.h`: host-backed IANA time-zone and DST support (supported)
 
 for more information, about usage and API documentation, please visit [muslimtify](https://muslimtify.vercel.app) documentation website
 
@@ -47,16 +47,17 @@ The Cargo package name is `libmuslim-rs`, while the Rust library import name is
 
 ```rust
 use libmuslim::prayertimes::{
-    calculate, CalculationMethod, Coordinates, Date, Error, MethodParams, UtcOffset,
+    calculate, CalculationMethod, Coordinates, Date, MethodParams,
 };
+use libmuslim::timezone::offset_at;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let date = Date::new(2026, 7, 30)?;
     let coordinates = Coordinates::new(-6.2, 106.8)?;
 
-    // The C layer applies no timezone database or DST rules, so the offset
-    // that applies to this date and location has to be supplied explicitly.
-    let offset = UtcOffset::from_hours(7.0)?;
+    // Resolve the offset through the host timezone database. A fixed
+    // UtcOffset::from_hours(7.0)? can still be supplied instead.
+    let offset = offset_at("Asia/Jakarta", 1_785_369_600)?;
 
     let mut params = MethodParams::for_method(CalculationMethod::Kemenag)?;
     params.ihtiyat_minutes = 3;
@@ -67,6 +68,12 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 ```
+
+The `timezone` module also provides `system_timezone()` for detecting the host
+zone. It relies on the operating system's timezone database (or Windows timezone
+APIs). The upstream C API returns `0.0` both for a real UTC offset and for an
+unresolved zone, so `offset_at` preserves that ambiguity rather than claiming
+it can distinguish the two cases.
 
 For a fuller walkthrough, including a fully custom calculation method, see
 [`examples/basic.rs`](examples/basic.rs):

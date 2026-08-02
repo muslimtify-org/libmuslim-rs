@@ -2,8 +2,9 @@ use std::error::Error;
 
 use libmuslim::prayertimes::{
     AsrSchool, CalculationMethod, Coordinates, Date, MethodParams, MidnightMode, PrayerTimes,
-    UtcOffset, calculate,
+    calculate,
 };
+use libmuslim::timezone::offset_at;
 
 fn print_times(label: &str, times: &PrayerTimes) {
     println!("{label}");
@@ -20,9 +21,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let date = Date::new(2026, 7, 30)?;
     let coordinates = Coordinates::new(-6.2, 106.8)?;
 
-    // Supply the explicit UTC offset applicable to this date. The library does
-    // not apply timezone-database or daylight-saving-time rules.
-    let utc_offset = UtcOffset::from_hours(7.0)?;
+    // Resolve the offset through the host timezone database. Supplying an
+    // explicit UtcOffset remains available when the offset is already known.
+    let utc_offset = offset_at("Asia/Jakarta", 1_785_369_600)?;
 
     let kemenag = MethodParams::for_method(CalculationMethod::Kemenag)?;
     let times = calculate(date, coordinates, utc_offset, &kemenag)?;
