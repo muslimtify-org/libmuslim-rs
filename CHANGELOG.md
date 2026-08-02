@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-02
+
 ### Added
 
 - Safe `timezone` bindings for resolving DST-aware IANA UTC offsets and
@@ -47,5 +49,6 @@ Initial release.
   read by the C calculation, and `Standard` is its only value. No midnight or
   qiyam time is returned, because `struct PrayerTimes` has no field for one.
 
-[Unreleased]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/muslimtify-org/libmuslim-rs/releases/tag/v0.1.0
