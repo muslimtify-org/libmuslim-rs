@@ -177,7 +177,7 @@ git commit -m "refactor: namespace prayer times binding"
 - Modify: `README.md:10-65`
 - Modify: `CHANGELOG.md:8`
 
-- [ ] **Step 1: Update README coverage and usage**
+- [x] **Step 1: Update README coverage and usage**
 
 Replace the introductory coverage list with:
 
@@ -209,7 +209,7 @@ use libmuslim::prayertimes::{
 
 Keep the remainder of the usage example unchanged.
 
-- [ ] **Step 2: Record the breaking change**
+- [x] **Step 2: Record the breaking change**
 
 Under `## [Unreleased]` in `CHANGELOG.md`, add:
 
@@ -220,7 +220,7 @@ Under `## [Unreleased]` in `CHANGELOG.md`, add:
   prayer-times API moved from the crate root to `libmuslim::prayertimes`.
 ```
 
-- [ ] **Step 3: Verify documentation, example, and repository references**
+- [x] **Step 3: Verify documentation, example, and repository references**
 
 Run: `rg -n "libmuslim_rs" src tests examples README.md Cargo.toml`
 
@@ -238,7 +238,7 @@ Run: `cargo fmt --all --check`
 
 Expected: exits zero.
 
-- [ ] **Step 4: Run the remaining complete quality gate**
+- [x] **Step 4: Run the remaining complete quality gate**
 
 Run: `cargo test --locked --all-targets`
 
@@ -256,7 +256,7 @@ Run: `cargo publish --locked --dry-run --all-features --allow-dirty`
 
 Expected: exits zero and packages the working-tree version of `libmuslim-rs` successfully; `--allow-dirty` is required because the documentation edits are committed only after this gate passes.
 
-- [ ] **Step 5: Commit the user-facing migration**
+- [x] **Step 5: Commit the user-facing migration**
 
 ```bash
 git add README.md CHANGELOG.md examples/basic.rs
