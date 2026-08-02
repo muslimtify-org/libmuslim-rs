@@ -15,7 +15,7 @@ Muslim-focused C libraries:
 2. `hijri.h`: astronomical Hijri calendar calculations (not yet supported)
 3. `timezone.h`: host-backed IANA time-zone and DST support (supported)
 
-for more information, about usage and API documentation, please visit [muslimtify](https://muslimtify.vercel.app) documentation website
+for more information, about usage and API documentation, please visit [muslimtify](https://muslimtify.vercel.app/docs/category/rust) documentation website
 
 ## Installation
 
