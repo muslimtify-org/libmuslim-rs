@@ -6,7 +6,8 @@
 //! before returning.
 //!
 //! `timezone.h` returns `0.0` both for a genuine zero-hour offset and for a
-//! zone it cannot resolve. [`offset_at`] preserves that upstream behavior.
+//! zone it cannot resolve. [`crate::timezone::offset_at`] preserves that
+//! upstream behavior.
 
 mod ffi;
 

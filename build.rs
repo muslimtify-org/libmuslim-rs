@@ -1,4 +1,8 @@
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        println!("cargo::rustc-link-lib=advapi32");
+    }
+
     println!("cargo::rerun-if-changed=include/prayertimes.c");
     println!("cargo::rerun-if-changed=include/abi_probe.c");
     println!("cargo::rerun-if-changed=include/prayertimes.h");
