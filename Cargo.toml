@@ -31,6 +31,9 @@ include = [
 # fail at link time on duplicate definitions.
 links = "prayertimes"
 
+[lib]
+name = "libmuslim"
+
 [build-dependencies]
 cc = "1.4.0"
 
