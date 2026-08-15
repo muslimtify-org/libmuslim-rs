@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `CalculationMethod::from_str` rejected `"CUSTOM"` and `"Custom"` while
+  accepting every other method name in any casing. The C lookup folds case,
+  but the Rust guard that separates a genuine `Custom` from the C not-found
+  sentinel compared case-sensitively.
+- `timezone::offset_at` returned `Ok(0.0)` for a zone the host cannot resolve,
+  making a typo such as `"Asia/Jakata"` indistinguishable from real UTC and
+  silently shifting every calculated prayer time. Zone names are now checked
+  against the host zone database first.
+
+### Changed
+
+- **Breaking:** `timezone::offset_at` returns the new
+  `TimezoneError::UnknownZone` for an unresolvable zone instead of falling
+  back to a `0.0` offset. Only IANA zone names present in the host database
+  are accepted; bare POSIX TZ strings such as `"XYZ8"` are rejected on every
+  platform.
+
+### Added
+
+- `abi_probe.c` pins the public `prayertimes.h` prototypes, so a changed C
+  signature fails the build instead of silently diverging from the
+  hand-written `extern "C"` declarations in `prayertimes::ffi`.
+
 ## [0.2.0] - 2026-08-02
 
 ### Added

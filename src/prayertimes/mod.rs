@@ -316,7 +316,12 @@ impl FromStr for CalculationMethod {
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let name = CString::new(input).map_err(|_| Error::StringContainsNul)?;
         let raw = unsafe { ffi::method_from_string(name.as_ptr()) };
-        if raw == ffi::CalcMethod::Custom && input != "custom" {
+        // C returns CALC_CUSTOM both for a real "custom" and for anything it
+        // does not recognise, so the only way to tell them apart is to re-test
+        // the input here. The comparison must fold case the same way C's
+        // pt__ascii_casecmp does -- ASCII-only -- or "CUSTOM" parses as an
+        // unknown method while "MWL" parses fine.
+        if raw == ffi::CalcMethod::Custom && !input.eq_ignore_ascii_case("custom") {
             return Err(Error::UnknownCalculationMethod(input.to_owned()));
         }
         Ok(raw.into())
@@ -1052,6 +1057,28 @@ mod tests {
             "unknown".parse::<CalculationMethod>(),
             Err(Error::UnknownCalculationMethod(_))
         ));
+    }
+
+    #[test]
+    fn method_parsing_folds_case_for_every_key() {
+        // C compares case-insensitively, so every key must parse in any
+        // casing. "custom" is the one that regressed: it is also C's
+        // not-found sentinel, so it takes a separate path in `from_str`.
+        for method in ["mwl", "kemenag", "moonsighting", "custom"] {
+            assert_eq!(
+                method.to_ascii_uppercase().parse::<CalculationMethod>(),
+                method.parse::<CalculationMethod>(),
+                "casing changed the result for {method}"
+            );
+        }
+        assert_eq!(
+            "CUSTOM".parse::<CalculationMethod>().unwrap(),
+            CalculationMethod::Custom
+        );
+        assert_eq!(
+            "Custom".parse::<CalculationMethod>().unwrap(),
+            CalculationMethod::Custom
+        );
     }
 
     #[test]
