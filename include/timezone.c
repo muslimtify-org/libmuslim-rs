@@ -90,6 +90,23 @@ int muslim_timezone_zone_exists(const char *tz_name) {
 
 #endif /* _WIN32 */
 
+/* Pin the timezone.h prototypes, for the same reason abi_probe.c pins the
+ * prayertimes.h ones: src/timezone/ffi.rs declares get_system_timezone by
+ * hand, and muslim_timezone_offset_at below calls parse_timezone_offset with
+ * arguments that would still convert silently if its parameter types changed.
+ * An initialisation of the expected pointer type turns either drift into a
+ * build error.
+ *
+ * They live here rather than in abi_probe.c because timezone.h must be
+ * included before any system <time.h> in the translation unit, which this
+ * file already guarantees and abi_probe.c does not.
+ *
+ * Not `static`: an unused static trips -Wunused-const-variable. Nothing reads
+ * them; the type check at initialisation is the whole point. */
+double (*abi_fn_parse_timezone_offset)(const char *, time_t) =
+    parse_timezone_offset;
+int (*abi_fn_get_system_timezone)(char *, size_t) = get_system_timezone;
+
 /* Returns 0 on success, -1 if the timestamp is outside the platform time_t
  * range, -2 if the zone is not a resolvable IANA name. */
 int muslim_timezone_offset_at(const char *tz_name, int64_t unix_timestamp,
