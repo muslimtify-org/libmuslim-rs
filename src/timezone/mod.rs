@@ -1,9 +1,18 @@
 //! Host-backed IANA time-zone resolution from libmuslim's `timezone.h`.
 //!
 //! This module uses the operating system's time-zone database. On POSIX,
-//! resolving an offset temporarily changes the process `TZ` environment
-//! variable; calls made through this module are serialized and restore it
-//! before returning.
+//! [`crate::timezone::offset_at`] temporarily changes the process `TZ`
+//! environment variable; calls to it are serialized and restore `TZ` before
+//! returning.
+//!
+//! That serialization covers callers of this crate and nothing else. `TZ` is
+//! process-global, so a thread elsewhere in the host program calling `getenv`,
+//! `localtime` or `tzset` while [`crate::timezone::offset_at`] is running can
+//! still observe the wrong zone, and the environment access itself is a data
+//! race. The hazard is upstream in `timezone.h`, tracked at
+//! <https://github.com/muslimtify-org/libmuslim/issues/41>. Supply an explicit
+//! [`crate::prayertimes::UtcOffset`] instead if the host process is
+//! multithreaded and touches the environment.
 //!
 //! `timezone.h` returns `0.0` both for a genuine zero-hour offset and for a
 //! zone it cannot resolve. [`crate::timezone::offset_at`] does not preserve
@@ -23,6 +32,10 @@ use std::sync::Mutex;
 
 use crate::prayertimes::UtcOffset;
 
+/// Serializes the `TZ` mutation inside `parse_timezone_offset`.
+///
+/// Only `offset_at` needs this. `get_system_timezone` reads `/etc/localtime`
+/// or calls `GetDynamicTimeZoneInformation` and touches no global state.
 static TIMEZONE_LOCK: Mutex<()> = Mutex::new(());
 
 /// An error produced while calling `timezone.h`.
@@ -102,10 +115,12 @@ pub fn offset_at(zone: &str, unix_timestamp: i64) -> Result<UtcOffset, TimezoneE
 }
 
 /// Returns the host system's IANA time-zone name.
+///
+/// Unlike [`crate::timezone::offset_at`], this takes no lock: the native
+/// function reads `/etc/localtime` on POSIX and calls
+/// `GetDynamicTimeZoneInformation` on Windows, writing only into the buffer it
+/// is given. It touches no process-global state.
 pub fn system_timezone() -> Result<String, TimezoneError> {
-    let _guard = TIMEZONE_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut output = [0 as c_char; 1024];
     let status = unsafe { ffi::get_system_timezone(output.as_mut_ptr(), output.len()) };
     if status != 0 {
