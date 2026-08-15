@@ -6,10 +6,15 @@
 //! before returning.
 //!
 //! `timezone.h` returns `0.0` both for a genuine zero-hour offset and for a
-//! zone it cannot resolve. [`offset_at`] does not preserve that: it checks the
-//! name against the host zone database first and reports
-//! [`TimezoneError::UnknownZone`], so an unresolvable zone can never be
-//! mistaken for UTC.
+//! zone it cannot resolve. [`crate::timezone::offset_at`] does not preserve
+//! that: it checks the name against the host zone database first and reports
+//! [`crate::timezone::TimezoneError::UnknownZone`], so an unresolvable zone
+//! can never be mistaken for UTC.
+//!
+//! (These links are fully qualified on purpose. `src/lib.rs` puts an outer
+//! doc comment on `pub mod timezone;`, which makes rustdoc resolve intra-doc
+//! links in this `//!` block against the crate root rather than this module,
+//! so bare names here fail the `-D warnings` doc build.)
 
 mod ffi;
 
