@@ -6,8 +6,10 @@
 //! before returning.
 //!
 //! `timezone.h` returns `0.0` both for a genuine zero-hour offset and for a
-//! zone it cannot resolve. [`crate::timezone::offset_at`] preserves that
-//! upstream behavior.
+//! zone it cannot resolve. [`offset_at`] does not preserve that: it checks the
+//! name against the host zone database first and reports
+//! [`TimezoneError::UnknownZone`], so an unresolvable zone can never be
+//! mistaken for UTC.
 
 mod ffi;
 
@@ -26,6 +28,8 @@ pub enum TimezoneError {
     ZoneContainsNul,
     /// The Unix timestamp cannot be represented by the platform C `time_t`.
     TimestampOutOfRange(i64),
+    /// The name is not an IANA zone the host can resolve.
+    UnknownZone(String),
     /// The host system time zone could not be detected.
     SystemTimezoneUnavailable,
     /// The native function returned a string without a NUL terminator.
@@ -46,6 +50,9 @@ impl std::fmt::Display for TimezoneError {
                 formatter,
                 "Unix timestamp {timestamp} is outside the platform time_t range"
             ),
+            Self::UnknownZone(zone) => {
+                write!(formatter, "unknown IANA time zone: {zone}")
+            }
             Self::SystemTimezoneUnavailable => {
                 write!(formatter, "host system time zone is unavailable")
             }
@@ -68,20 +75,25 @@ impl std::error::Error for TimezoneError {}
 /// Resolves the UTC offset for an IANA zone at a Unix timestamp.
 ///
 /// Daylight-saving and historical changes are applied by the host operating
-/// system. An unknown zone may resolve to `0.0`, because that is the failure
-/// fallback defined by `timezone.h` and is indistinguishable from UTC.
+/// system.
+///
+/// Only IANA zone names are accepted. A name the host cannot resolve is
+/// rejected with [`TimezoneError::UnknownZone`] rather than falling back to
+/// `0.0`, so a typo cannot masquerade as UTC. POSIX TZ strings such as
+/// `EST5EDT` are not IANA names and are rejected on every platform.
 pub fn offset_at(zone: &str, unix_timestamp: i64) -> Result<UtcOffset, TimezoneError> {
-    let zone = CString::new(zone).map_err(|_| TimezoneError::ZoneContainsNul)?;
+    let name = CString::new(zone).map_err(|_| TimezoneError::ZoneContainsNul)?;
     let _guard = TIMEZONE_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut hours = 0.0;
     let status =
-        unsafe { ffi::muslim_timezone_offset_at(zone.as_ptr(), unix_timestamp, &mut hours) };
-    if status != 0 {
-        return Err(TimezoneError::TimestampOutOfRange(unix_timestamp));
+        unsafe { ffi::muslim_timezone_offset_at(name.as_ptr(), unix_timestamp, &mut hours) };
+    match status {
+        0 => UtcOffset::from_hours(hours).map_err(|_| TimezoneError::InvalidOffset(hours)),
+        -2 => Err(TimezoneError::UnknownZone(zone.to_owned())),
+        _ => Err(TimezoneError::TimestampOutOfRange(unix_timestamp)),
     }
-    UtcOffset::from_hours(hours).map_err(|_| TimezoneError::InvalidOffset(hours))
 }
 
 /// Returns the host system's IANA time-zone name.

@@ -27,6 +27,33 @@ fn accepts_zero_offset_and_rejects_interior_nul() {
 }
 
 #[test]
+fn rejects_zone_names_the_host_cannot_resolve() {
+    // The whole point: a typo must not come back as a plausible UTC offset.
+    assert_eq!(
+        offset_at("Asia/Jakata", 0),
+        Err(TimezoneError::UnknownZone("Asia/Jakata".into()))
+    );
+    // A bare POSIX TZ string has no tzdb entry. glibc would happily parse
+    // "XYZ8" as "8 hours west of UTC"; the zone database is the authority
+    // here, so it is rejected. (Note that "EST5EDT" looks like a POSIX string
+    // but is a real legacy tzdb file, so it resolves -- membership in the
+    // database is the rule, not the shape of the name.)
+    assert_eq!(
+        offset_at("XYZ8", 0),
+        Err(TimezoneError::UnknownZone("XYZ8".into()))
+    );
+    // A name must never be usable to reach outside the zone database.
+    assert_eq!(
+        offset_at("../../etc/passwd", 0),
+        Err(TimezoneError::UnknownZone("../../etc/passwd".into()))
+    );
+    assert_eq!(
+        offset_at("", 0),
+        Err(TimezoneError::UnknownZone(String::new()))
+    );
+}
+
+#[test]
 fn detects_a_nonempty_system_timezone_or_reports_native_failure() {
     match system_timezone() {
         Ok(zone) => assert!(!zone.is_empty()),

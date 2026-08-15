@@ -102,8 +102,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The `timezone` module also provides `system_timezone()` for detecting the host
 zone. It relies on the operating system's timezone database (or Windows timezone
 APIs). The upstream C API returns `0.0` both for a real UTC offset and for an
-unresolved zone, so `offset_at` preserves that ambiguity rather than claiming
-it can distinguish the two cases.
+unresolved zone; `offset_at` resolves that ambiguity by checking the name
+against the host zone database first, so a typo such as `"Asia/Jakata"` fails
+with `TimezoneError::UnknownZone` instead of silently reading as UTC. Only IANA
+zone names are accepted — bare POSIX TZ strings such as `"XYZ8"` are rejected.
 
 For a fuller walkthrough, including a fully custom calculation method, see
 [`examples/basic.rs`](examples/basic.rs):
