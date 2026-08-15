@@ -72,3 +72,25 @@ long abi_days_from_civil(int y, int m, int d) {
 void abi_civil_from_days(long days, int *y, int *m, int *d) {
   mt_civil_from_days(days, y, m, d);
 }
+
+/* Pin the public prototypes.
+ *
+ * src/prayertimes/ffi.rs declares these by hand -- no bindgen -- so a changed
+ * signature in prayertimes.h would otherwise compile clean on both sides and
+ * only misbehave at run time. Initialising a pointer of the expected type makes
+ * any mismatch a build error instead.
+ *
+ * These are deliberately not `static`: an unused static would trip
+ * -Wunused-const-variable on every build. Nothing reads them; the type check at
+ * initialisation is the whole point.
+ *
+ * This pins the header against this file, not against ffi.rs. When one of these
+ * fails to compile, the Rust extern block needs updating too. */
+struct PrayerTimes (*abi_fn_calculate)(int, int, int, double, double, double,
+                                       const MethodParams *) =
+    calculate_prayer_times;
+const MethodParams *(*abi_fn_params_get)(CalcMethod) = method_params_get;
+CalcMethod (*abi_fn_from_string)(const char *) = method_from_string;
+const char *(*abi_fn_to_string)(CalcMethod) = method_to_string;
+void (*abi_fn_format_hm)(double, char *, size_t) = format_time_hm;
+void (*abi_fn_format_hms)(double, char *, size_t) = format_time_hms;
