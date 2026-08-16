@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-16
+
 ### Fixed
 
 - `CalculationMethod::from_str` rejected `"CUSTOM"` and `"Custom"` while
@@ -80,6 +82,7 @@ Initial release.
   read by the C calculation, and `Standard` is its only value. No midnight or
   qiyam time is returned, because `struct PrayerTimes` has no field for one.
 
-[Unreleased]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/muslimtify-org/libmuslim-rs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/muslimtify-org/libmuslim-rs/releases/tag/v0.1.0
