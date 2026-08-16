@@ -1,24 +1,23 @@
 //! Host-backed IANA time-zone resolution from libmuslim's `timezone.h`.
 //!
-//! This module uses the operating system's time-zone database. On POSIX,
-//! [`crate::timezone::offset_at`] temporarily changes the process `TZ`
-//! environment variable; calls to it are serialized and restore `TZ` before
-//! returning.
+//! This module uses the operating system's time-zone database.
+//! [`crate::timezone::offset_at`] reads the zone's TZif file directly on POSIX
+//! and calls `SystemTimeToTzSpecificLocalTimeEx` on Windows. It mutates no
+//! process-global state, takes no lock, and is safe to call concurrently from
+//! any number of threads.
 //!
-//! That serialization covers callers of this crate and nothing else. `TZ` is
-//! process-global, so a thread elsewhere in the host program calling `getenv`,
-//! `localtime` or `tzset` while [`crate::timezone::offset_at`] is running can
-//! still observe the wrong zone, and the environment access itself is a data
-//! race. The hazard is upstream in `timezone.h`, tracked at
-//! <https://github.com/muslimtify-org/libmuslim/issues/41>. Supply an explicit
-//! [`crate::prayertimes::UtcOffset`] instead if the host process is
-//! multithreaded and touches the environment.
+//! Earlier releases resolved the offset by setting the process `TZ`
+//! environment variable, which raced with any other thread calling `getenv`,
+//! `localtime` or `tzset`. That was fixed upstream in `timezone.h`
+//! (<https://github.com/muslimtify-org/libmuslim/issues/41>) and this module
+//! no longer serializes calls.
 //!
-//! `timezone.h` returns `0.0` both for a genuine zero-hour offset and for a
-//! zone it cannot resolve. [`crate::timezone::offset_at`] does not preserve
-//! that: it checks the name against the host zone database first and reports
-//! [`crate::timezone::TimezoneError::UnknownZone`], so an unresolvable zone
-//! can never be mistaken for UTC.
+//! Only IANA zone names are accepted. `timezone.h` also resolves POSIX TZ
+//! strings and absolute TZif paths on POSIX, but neither form exists on
+//! Windows, so [`crate::timezone::offset_at`] requires a name the host zone
+//! database contains and reports
+//! [`crate::timezone::TimezoneError::UnknownZone`] otherwise. That check also
+//! keeps a typo from resolving: `Asia/Jakata` fails rather than answering.
 //!
 //! (These links are fully qualified on purpose. `src/lib.rs` puts an outer
 //! doc comment on `pub mod timezone;`, which makes rustdoc resolve intra-doc
@@ -28,15 +27,8 @@
 mod ffi;
 
 use std::ffi::{CString, c_char};
-use std::sync::Mutex;
 
 use crate::prayertimes::UtcOffset;
-
-/// Serializes the `TZ` mutation inside `parse_timezone_offset`.
-///
-/// Only `offset_at` needs this. `get_system_timezone` reads `/etc/localtime`
-/// or calls `GetDynamicTimeZoneInformation` and touches no global state.
-static TIMEZONE_LOCK: Mutex<()> = Mutex::new(());
 
 /// An error produced while calling `timezone.h`.
 #[derive(Debug, Clone, PartialEq)]
@@ -96,14 +88,15 @@ impl std::error::Error for TimezoneError {}
 /// system.
 ///
 /// Only IANA zone names are accepted. A name the host cannot resolve is
-/// rejected with [`TimezoneError::UnknownZone`] rather than falling back to
-/// `0.0`, so a typo cannot masquerade as UTC. POSIX TZ strings such as
-/// `EST5EDT` are not IANA names and are rejected on every platform.
+/// rejected with [`TimezoneError::UnknownZone`], so a typo cannot masquerade
+/// as UTC. Bare POSIX TZ strings such as `XYZ8` and absolute paths to TZif
+/// files are not IANA names and are rejected on every platform, even where
+/// the underlying C library would resolve them.
+///
+/// This takes no lock and mutates no process-global state, so it is safe to
+/// call concurrently.
 pub fn offset_at(zone: &str, unix_timestamp: i64) -> Result<UtcOffset, TimezoneError> {
     let name = CString::new(zone).map_err(|_| TimezoneError::ZoneContainsNul)?;
-    let _guard = TIMEZONE_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut hours = 0.0;
     let status =
         unsafe { ffi::muslim_timezone_offset_at(name.as_ptr(), unix_timestamp, &mut hours) };
@@ -116,10 +109,10 @@ pub fn offset_at(zone: &str, unix_timestamp: i64) -> Result<UtcOffset, TimezoneE
 
 /// Returns the host system's IANA time-zone name.
 ///
-/// Unlike [`crate::timezone::offset_at`], this takes no lock: the native
-/// function reads `/etc/localtime` on POSIX and calls
+/// Like [`crate::timezone::offset_at`], this touches no process-global state:
+/// the native function reads `/etc/localtime` on POSIX and calls
 /// `GetDynamicTimeZoneInformation` on Windows, writing only into the buffer it
-/// is given. It touches no process-global state.
+/// is given.
 pub fn system_timezone() -> Result<String, TimezoneError> {
     let mut output = [0 as c_char; 1024];
     let status = unsafe { ffi::get_system_timezone(output.as_mut_ptr(), output.len()) };

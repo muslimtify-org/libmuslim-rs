@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   making a typo such as `"Asia/Jakata"` indistinguishable from real UTC and
   silently shifting every calculated prayer time. Zone names are now checked
   against the host zone database first.
+- `timezone::offset_at` raced with any other thread in the host process that
+  read `TZ`, called `localtime` or called `tzset`. The vendored `timezone.h`
+  resolved offsets by mutating the process environment; it now reads the
+  zone's TZif file directly and mutates nothing global
+  ([libmuslim#41](https://github.com/muslimtify-org/libmuslim/issues/41)).
+  The crate's mutex, which only ever covered its own callers, is gone.
 
 ### Changed
 

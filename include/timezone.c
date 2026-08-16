@@ -4,15 +4,22 @@
 #include <stdint.h>
 #include <string.h>
 
-/* parse_timezone_offset() returns 0.0 both for a genuine UTC zone and for a
- * name the host cannot resolve, so a typo like "Asia/Jakata" is indis-
- * tinguishable from real UTC at the call site. That ambiguity is fixed here by
- * checking the name against the host's zone database up front, so callers get
- * an explicit failure instead of a plausible-looking wrong offset.
+/* Only IANA zone names are accepted, and the check below is what enforces
+ * that.
  *
- * Only IANA zone names are accepted. POSIX TZ strings ("EST5EDT", "UTC-7")
- * resolve on Unix but have no tzdb entry and cannot be expressed on Windows,
- * so they are rejected on both platforms to keep the behaviour identical. */
+ * timezone.h resolves more than IANA names on POSIX: a bare POSIX TZ string
+ * ("WIB-7", "XYZ8"), an absolute path to a TZif file, and either of those
+ * with a leading ':'. None of those forms exist on Windows, which resolves
+ * names through a bundled IANA<->Windows table. Letting them through would
+ * make offset_at() answer differently per platform for the same input, so the
+ * name is required to be a zone the host database actually contains before it
+ * ever reaches the header.
+ *
+ * This used to serve a second purpose. parse_timezone_offset() returned 0.0
+ * both for a genuine UTC zone and for a name it could not resolve, so a typo
+ * like "Asia/Jakata" was indistinguishable from real UTC. The header now
+ * returns an explicit -1 for that (muslimtify-org/libmuslim#41), so the check
+ * below is left carrying only the cross-platform parity job. */
 
 /* Reject anything that is not a plausible IANA zone name before it is used to
  * build a filesystem path: no absolute paths, no "..", no empty components,
@@ -103,7 +110,7 @@ int muslim_timezone_zone_exists(const char *tz_name) {
  *
  * Not `static`: an unused static trips -Wunused-const-variable. Nothing reads
  * them; the type check at initialisation is the whole point. */
-double (*abi_fn_parse_timezone_offset)(const char *, time_t) =
+int (*abi_fn_parse_timezone_offset)(const char *, time_t, double *) =
     parse_timezone_offset;
 int (*abi_fn_get_system_timezone)(char *, size_t) = get_system_timezone;
 
@@ -118,6 +125,10 @@ int muslim_timezone_offset_at(const char *tz_name, int64_t unix_timestamp,
   if (!muslim_timezone_zone_exists(tz_name))
     return -2;
 
-  *offset = parse_timezone_offset(tz_name, when);
+  /* The zone exists, so a failure here means the host could not read it --
+   * a truncated or pre-v2 TZif file, or a name the Windows table lists but
+   * the running system does not carry. Unresolvable either way. */
+  if (parse_timezone_offset(tz_name, when, offset) != 0)
+    return -2;
   return 0;
 }

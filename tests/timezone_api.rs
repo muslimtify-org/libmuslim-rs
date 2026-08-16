@@ -54,6 +54,40 @@ fn rejects_zone_names_the_host_cannot_resolve() {
 }
 
 #[test]
+fn concurrent_lookups_of_different_zones_stay_correct() {
+    // `offset_at` dropped its mutex once muslimtify-org/libmuslim#41 was fixed
+    // upstream, so this asserts the answers survive without it.
+    //
+    // It is not a reproduction of #41 and would not have failed before the
+    // fix: that race needed an unsynchronized second party reading `TZ`, and
+    // the old mutex serialized every caller reachable from this crate. The
+    // reproduction lives upstream, next to the code that was racing. What this
+    // catches is a shim that reintroduces process-global state now that
+    // nothing on the Rust side is serializing it.
+    const ITERATIONS: usize = 50_000;
+    let cases = [("America/New_York", -5.0), ("Asia/Jakarta", 7.0)];
+
+    let wrong: usize = std::thread::scope(|scope| {
+        let handles: Vec<_> = cases
+            .iter()
+            .map(|(zone, expected)| {
+                scope.spawn(move || {
+                    (0..ITERATIONS)
+                        .filter(|_| offset_at(zone, 0).unwrap().hours() != *expected)
+                        .count()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .sum()
+    });
+
+    assert_eq!(wrong, 0);
+}
+
+#[test]
 fn detects_a_nonempty_system_timezone_or_reports_native_failure() {
     match system_timezone() {
         Ok(zone) => assert!(!zone.is_empty()),
