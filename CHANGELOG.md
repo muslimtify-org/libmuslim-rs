@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `format_hm` and `format_hms` could return a string with a negative field, and
+  the `hour`, `minute` and `second` accessors could return negative components,
+  for any time outside 0 to 24 hours. `calculate` returns such values at high
+  latitude, so this was reachable rather than defensive. Both the vendored
+  `prayertimes.h` and the Rust reimplementation in `hms_components` now reduce
+  onto the clock face first, and a test asserts the two agree
+  ([libmuslim#57](https://github.com/muslimtify-org/libmuslim/pull/57)).
+  Before this, a decimal hour of -0.104 formatted as `00:-6:-13` and
+  decomposed to `(0, -6, -13)`.
+
 - Prayer times were computed from a solar position evaluated once at 0h UT and
   reused for events up to 20 hours later, so the declination was stale by the
   time sunset was solved. The vendored `prayertimes.h` now evaluates the Sun at
