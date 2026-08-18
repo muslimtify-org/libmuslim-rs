@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Prayer times were computed from a solar position evaluated once at 0h UT and
+  reused for events up to 20 hours later, so the declination was stale by the
+  time sunset was solved. The vendored `prayertimes.h` now evaluates the Sun at
+  each event's own instant
+  ([libmuslim#49](https://github.com/muslimtify-org/libmuslim/pull/49)).
+  Maghrib is measured against a JPL DE440 validated solver at 6.5966 seconds
+  worst case over a grid of 14235 points, for `|latitude| <= 60`.
+
+### Changed
+
+- Computed times move at high latitudes. Measured across 12 cities and all of
+  2026, 24192 values, the worst movement is 0 minutes for dhuhr and asr,
+  1 for sunrise, 2 for fajr, 3 for maghrib and 16 for isha. Equatorial results
+  move by at most 1 minute. The isha figure is Stockholm on 2026-08-17, where
+  the high latitude fallback engages and is steep, so a small input shift
+  produces a large output shift. Callers above roughly 55 degrees should read
+  this as a correction rather than drift, but note that the isha refinement has
+  no oracle behind it upstream
+  ([libmuslim#52](https://github.com/muslimtify-org/libmuslim/issues/52)).
+
+### Known issues
+
+- `PrayerTimes::dhuha` is NAN above roughly 62.5 degrees of latitude on the
+  days when the Sun never reaches the dhuha altitude, with no error and no
+  sentinel. At Reykjavik that is 40 days a year. Sunrise and dhuhr solve
+  normally on those same days, so only this one field is affected
+  ([libmuslim#51](https://github.com/muslimtify-org/libmuslim/issues/51)).
+
 ## [0.3.0] - 2026-08-16
 
 ### Fixed
