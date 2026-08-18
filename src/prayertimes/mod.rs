@@ -642,9 +642,23 @@ impl PrayerTime {
             .to_owned()
     }
 
+    /// Reduces onto the 24-hour clock face before decomposing.
+    ///
+    /// The cast below truncates toward zero, so without this a negative
+    /// decimal hour yields a negative minute and second. The C header applies
+    /// the same reduction in `normalize_clock_hours`, and the two must agree
+    /// or `format_hms` and the component accessors disagree for the same
+    /// value. `calculate` can return hours outside 0 to 24 at high latitude,
+    /// so this is reachable rather than defensive.
+    fn clock_hours(self) -> f64 {
+        let t = self.0 % 24.0;
+        if t < 0.0 { t + 24.0 } else { t }
+    }
+
     fn hms_components(self) -> (i32, i32, i32) {
-        let mut hours = self.0 as i32;
-        let fraction = self.0 - f64::from(hours);
+        let normalized = self.clock_hours();
+        let mut hours = normalized as i32;
+        let fraction = normalized - f64::from(hours);
         let total_seconds = (fraction * 3600.0 + 0.5) as i32;
         let mut minutes = total_seconds / 60;
         let seconds = total_seconds % 60;
@@ -1154,5 +1168,41 @@ mod tests {
 
         let invalid = MethodParams::new("Interior\0NUL");
         assert!(matches!(invalid.validate(), Err(Error::StringContainsNul)));
+    }
+
+    #[test]
+    fn components_and_formatting_agree_outside_the_day() {
+        // calculate() can return hours outside 0 to 24 at high latitude, so
+        // these values are reachable and not merely defensive. Before the
+        // clock_hours reduction, -0.104 decomposed to (0, -6, -13).
+        let cases = [
+            (-0.104_f64, (23, 53, 46), "23:53:46"),
+            (-24.5, (23, 30, 0), "23:30:00"),
+            (25.075, (1, 4, 30), "01:04:30"),
+            (24.0, (0, 0, 0), "00:00:00"),
+            (12.5, (12, 30, 0), "12:30:00"),
+        ];
+        for (hours, want_components, want_hms) in cases {
+            let t = PrayerTime::try_from_decimal_hours(hours).expect("finite");
+            assert_eq!(
+                (t.hour(), t.minute(), t.second()),
+                want_components,
+                "components for {hours}"
+            );
+            assert_eq!(t.format_hms(), want_hms, "format_hms for {hours}");
+            // The two paths must never disagree, which is the property the
+            // reduction exists to hold.
+            assert_eq!(
+                format!("{:02}:{:02}:{:02}", t.hour(), t.minute(), t.second()),
+                t.format_hms(),
+                "component and formatter disagree for {hours}"
+            );
+            assert!(
+                (0..24).contains(&t.hour())
+                    && (0..60).contains(&t.minute())
+                    && (0..60).contains(&t.second()),
+                "component out of range for {hours}"
+            );
+        }
     }
 }
