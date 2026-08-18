@@ -199,12 +199,55 @@ pub enum AsrSchool {
     Hanafi,
 }
 
-// The C header declares a `HighLatMethod` enum, but it is not a field of
-// `MethodParams` and `calculate_prayer_times` never reads it: the high-latitude
-// fallback is hardcoded to the angle-based rule. No selector is exposed here
-// rather than publishing an enum that cannot affect a calculation. The
-// discriminants are still asserted against C in `ffi`, so a future upstream
-// release that wires this up can be surfaced without re-deriving them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What fajr and isha do when the Sun never reaches the required depression
+/// angle, which happens every summer above roughly 48 degrees of latitude.
+///
+/// This is a property of the calculation authority rather than of the library.
+/// Most authorities serve places where the case never arises and publish no
+/// rule, so most built-in methods carry [`HighLatMethod::AngleBased`], which is
+/// a computational convention and not anyone's ruling.
+///
+/// Every variant except [`HighLatMethod::NearestLatitude`] is measured in units
+/// of the interval between sunset and sunrise, so none of them is defined
+/// inside the polar circle where that interval does not exist. See
+/// [`MethodParams::high_lat_reference_latitude`] for that case.
+pub enum HighLatMethod {
+    /// No substitution. The time is reported as [`Error::NonFiniteResult`].
+    None,
+    /// Half the night before sunrise, and after sunset.
+    MiddleOfNight,
+    /// One seventh of the night.
+    OneSeventh,
+    /// The depression angle divided by 60, as a fraction of the night.
+    AngleBased,
+    /// The same fraction of the night as at the reference latitude.
+    NearestLatitude,
+}
+
+impl From<HighLatMethod> for ffi::HighLatMethod {
+    fn from(value: HighLatMethod) -> Self {
+        match value {
+            HighLatMethod::None => Self::None,
+            HighLatMethod::MiddleOfNight => Self::MiddleOfNight,
+            HighLatMethod::OneSeventh => Self::OneSeventh,
+            HighLatMethod::AngleBased => Self::AngleBased,
+            HighLatMethod::NearestLatitude => Self::NearestLatitude,
+        }
+    }
+}
+
+impl From<ffi::HighLatMethod> for HighLatMethod {
+    fn from(value: ffi::HighLatMethod) -> Self {
+        match value {
+            ffi::HighLatMethod::None => Self::None,
+            ffi::HighLatMethod::MiddleOfNight => Self::MiddleOfNight,
+            ffi::HighLatMethod::OneSeventh => Self::OneSeventh,
+            ffi::HighLatMethod::AngleBased => Self::AngleBased,
+            ffi::HighLatMethod::NearestLatitude => Self::NearestLatitude,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// The convention used to determine midnight.
@@ -358,6 +401,18 @@ pub struct MethodParams {
     pub midnight_mode: MidnightMode,
     /// Precautionary adjustment added to calculated times, in minutes.
     pub ihtiyat_minutes: i32,
+    /// Substitution used when the depression angle is unreachable but a real
+    /// night still exists.
+    pub high_lat_method: HighLatMethod,
+    /// Reference latitude consulted when there is no sunrise or sunset at all,
+    /// which is the case inside the polar circle.
+    ///
+    /// Every [`HighLatMethod`] except [`HighLatMethod::NearestLatitude`] is
+    /// measured in units of the night, so without a reference there is nothing
+    /// to measure and the affected times are non-finite. Zero means the
+    /// authority publishes no rule for this case, which is true of most of
+    /// them.
+    pub high_lat_reference_latitude: f64,
 }
 
 impl MethodParams {
@@ -372,6 +427,8 @@ impl MethodParams {
             asr_school: AsrSchool::Standard,
             midnight_mode: MidnightMode::Standard,
             ihtiyat_minutes: 0,
+            high_lat_method: HighLatMethod::AngleBased,
+            high_lat_reference_latitude: 0.0,
         }
     }
 
@@ -408,6 +465,8 @@ impl MethodParams {
             asr_school,
             midnight_mode: params.midnight_mode.into(),
             ihtiyat_minutes: params.ihtiyat,
+            high_lat_method: params.high_lat_method.into(),
+            high_lat_reference_latitude: params.high_lat_ref,
         })
     }
 
@@ -435,6 +494,16 @@ impl MethodParams {
             return Err(Error::InvalidMethodParams {
                 field: "maghrib_interval_minutes",
                 reason: "must be non-negative",
+            });
+        }
+        // Zero means "the authority publishes no rule for the polar case", so
+        // it is valid and is not a latitude. Anything else is consulted as one.
+        if !self.high_lat_reference_latitude.is_finite()
+            || !(-90.0..=90.0).contains(&self.high_lat_reference_latitude)
+        {
+            return Err(Error::InvalidMethodParams {
+                field: "high_lat_reference_latitude",
+                reason: "must be finite and between -90 and 90 degrees",
             });
         }
         CString::new(self.name.as_str()).map_err(|_| Error::StringContainsNul)?;
@@ -696,7 +765,17 @@ pub struct PrayerTimes {
     /// Sunrise time.
     pub sunrise: PrayerTime,
     /// Dhuha time.
-    pub dhuha: PrayerTime,
+    /// Dhuha, when it occurs.
+    ///
+    /// `None` above roughly 62.5 degrees of latitude on days when the Sun never
+    /// reaches the dhuha altitude. Dhuha is not one of the prescribed prayers
+    /// and no calculation authority publishes a high-latitude substitution for
+    /// it, so libmuslim reports no time rather than inventing one.
+    ///
+    /// This is an `Option` rather than an error so that a missing dhuha cannot
+    /// withhold the five prescribed times, which do resolve at those latitudes
+    /// for any method carrying a reference latitude.
+    pub dhuha: Option<PrayerTime>,
     /// Dhuhr time.
     pub dhuhr: PrayerTime,
     /// Asr time.
@@ -728,6 +807,8 @@ pub fn calculate(
         asr_shadow: ffi::AsrSchool::from(params.asr_school) as i32,
         midnight_mode: params.midnight_mode.into(),
         ihtiyat: params.ihtiyat_minutes,
+        high_lat_method: params.high_lat_method.into(),
+        high_lat_ref: params.high_lat_reference_latitude,
     };
     let raw = unsafe {
         ffi::calculate_prayer_times(
@@ -744,7 +825,7 @@ pub fn calculate(
     Ok(PrayerTimes {
         fajr: PrayerTime::from_result(raw.fajr, "fajr")?,
         sunrise: PrayerTime::from_result(raw.sunrise, "sunrise")?,
-        dhuha: PrayerTime::from_result(raw.dhuha, "dhuha")?,
+        dhuha: PrayerTime::from_result(raw.dhuha, "dhuha").ok(),
         dhuhr: PrayerTime::from_result(raw.dhuhr, "dhuhr")?,
         asr: PrayerTime::from_result(raw.asr, "asr")?,
         maghrib: PrayerTime::from_result(raw.maghrib, "maghrib")?,
@@ -824,6 +905,8 @@ mod tests {
             },
             midnight_mode: params.midnight_mode.into(),
             ihtiyat: params.ihtiyat_minutes,
+            high_lat_method: params.high_lat_method.into(),
+            high_lat_ref: params.high_lat_reference_latitude,
         };
         let raw = unsafe {
             ffi::calculate_prayer_times(
@@ -843,7 +926,10 @@ mod tests {
             safe.sunrise.decimal_hours().to_bits(),
             raw.sunrise.to_bits()
         );
-        assert_eq!(safe.dhuha.decimal_hours().to_bits(), raw.dhuha.to_bits());
+        assert_eq!(
+            safe.dhuha.unwrap().decimal_hours().to_bits(),
+            raw.dhuha.to_bits()
+        );
         assert_eq!(safe.dhuhr.decimal_hours().to_bits(), raw.dhuhr.to_bits());
         assert_eq!(safe.asr.decimal_hours().to_bits(), raw.asr.to_bits());
         assert_eq!(
@@ -852,7 +938,10 @@ mod tests {
         );
         assert_eq!(safe.isha.decimal_hours().to_bits(), raw.isha.to_bits());
 
-        assert_eq!(safe.dhuha.decimal_hours().to_bits(), raw.dhuha.to_bits());
+        assert_eq!(
+            safe.dhuha.unwrap().decimal_hours().to_bits(),
+            raw.dhuha.to_bits()
+        );
     }
 
     #[test]
@@ -1204,5 +1293,53 @@ mod tests {
                 "component out of range for {hours}"
             );
         }
+    }
+
+    #[test]
+    fn the_high_latitude_rule_follows_the_method() {
+        // Longyearbyen at the solstice. The Sun does not cross the horizon, so
+        // every rule measured in units of the night is undefined there.
+        let place = Coordinates::new(78.22, 15.65).unwrap();
+        let date = Date::new(2025, 6, 21).unwrap();
+        let offset = UtcOffset::from_hours(1.0).unwrap();
+
+        // MWL carries the reference latitude its own Fiqh Council decree names,
+        // so the prescribed times resolve.
+        let mwl = MethodParams::for_method(CalculationMethod::Mwl).unwrap();
+        assert_eq!(mwl.high_lat_reference_latitude, 45.0);
+        let t = calculate(date, place, offset, &mwl).expect("MWL resolves at Longyearbyen");
+        for hours in [
+            t.fajr.decimal_hours(),
+            t.sunrise.decimal_hours(),
+            t.maghrib.decimal_hours(),
+            t.isha.decimal_hours(),
+        ] {
+            assert!(hours.is_finite(), "expected a finite time, got {hours}");
+        }
+
+        // Kemenag publishes no rule for this case and carries no reference, so
+        // the calculation reports that rather than inventing a time. Indonesia
+        // never reaches these latitudes, so there is nothing to publish.
+        let kemenag = MethodParams::for_method(CalculationMethod::Kemenag).unwrap();
+        assert_eq!(kemenag.high_lat_reference_latitude, 0.0);
+        assert!(matches!(
+            calculate(date, place, offset, &kemenag),
+            Err(Error::NonFiniteResult(_))
+        ));
+    }
+
+    #[test]
+    fn rejects_an_out_of_range_reference_latitude() {
+        let mut p = MethodParams::new("custom");
+        p.high_lat_reference_latitude = 91.0;
+        assert!(matches!(
+            p.validate(),
+            Err(Error::InvalidMethodParams {
+                field: "high_lat_reference_latitude",
+                ..
+            })
+        ));
+        p.high_lat_reference_latitude = 0.0;
+        assert!(p.validate().is_ok());
     }
 }
