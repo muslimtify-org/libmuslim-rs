@@ -28,7 +28,7 @@ fn external_consumer_can_use_the_complete_safe_surface() {
     let values: [PrayerTime; 7] = [
         times.fajr,
         times.sunrise,
-        times.dhuha,
+        times.dhuha.expect("Jakarta has a dhuha time"),
         times.dhuhr,
         times.asr,
         times.maghrib,

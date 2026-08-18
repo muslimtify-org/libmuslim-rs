@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `HighLatMethod` and two `MethodParams` fields, `high_lat_method` and
+  `high_lat_reference_latitude`, surfacing libmuslim v0.2.0's per-method
+  high-latitude rule. The `ffi` mirror of this enum had been kept unexported
+  against exactly this change, so its discriminants were already pinned
+  ([libmuslim#62](https://github.com/muslimtify-org/libmuslim/pull/62)).
+
+### Changed
+
+- **Breaking.** `PrayerTimes::dhuha` is now `Option<PrayerTime>`. It was a
+  `PrayerTime`, and a non-finite dhuha failed the whole calculation with
+  `Error::NonFiniteResult`. That withheld the five prescribed times over any
+  location where only dhuha was unavailable, which above roughly 62.5 degrees
+  is most of the summer. Dhuha is not a prescribed prayer and no authority
+  publishes a high-latitude substitution for it, so it is absent rather than
+  erroneous. At Longyearbyen on the solstice under MWL, fajr, sunrise, maghrib
+  and isha now return times where the call previously returned
+  `NonFiniteResult("dhuha")`.
+
 ### Fixed
 
 - `format_hm` and `format_hms` could return a string with a negative field, and

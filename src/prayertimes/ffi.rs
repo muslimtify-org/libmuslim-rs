@@ -41,11 +41,10 @@ pub(crate) enum AsrSchool {
 
 /// Mirror of the C `HighLatMethod` enum.
 ///
-/// Deliberately not re-exported through the safe API: the C library declares
-/// this enum but never reads it, so no value here can change a calculation.
-/// It is kept so `enum_discriminants_match_c` keeps pinning the values against
-/// the header — if upstream later adds a `high_lat_method` field to
-/// `MethodParams`, the ABI half is already verified.
+/// This was previously kept only to pin discriminants, on the expectation that
+/// upstream would one day add a `high_lat_method` field to `MethodParams`.
+/// libmuslim v0.2.0 did exactly that, so the enum is now read, surfaced through
+/// the safe API as [`crate::prayertimes::HighLatMethod`], and the pinning kept.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HighLatMethod {
@@ -53,6 +52,7 @@ pub(crate) enum HighLatMethod {
     MiddleOfNight,
     OneSeventh,
     AngleBased,
+    NearestLatitude,
 }
 
 #[repr(C)]
@@ -72,6 +72,8 @@ pub(crate) struct MethodParams {
     pub(crate) asr_shadow: c_int,
     pub(crate) midnight_mode: MidnightMode,
     pub(crate) ihtiyat: c_int,
+    pub(crate) high_lat_method: HighLatMethod,
+    pub(crate) high_lat_ref: c_double,
 }
 
 #[repr(C)]
@@ -259,6 +261,7 @@ mod tests {
         assert_eq!(HighLatMethod::MiddleOfNight as c_int, 1);
         assert_eq!(HighLatMethod::OneSeventh as c_int, 2);
         assert_eq!(HighLatMethod::AngleBased as c_int, 3);
+        assert_eq!(HighLatMethod::NearestLatitude as c_int, 4);
         assert_eq!(MidnightMode::Standard as c_int, 0);
     }
 }
