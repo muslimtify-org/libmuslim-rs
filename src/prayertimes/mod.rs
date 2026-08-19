@@ -1349,4 +1349,34 @@ mod tests {
         assert_eq!(tromso.fajr.hour(), 23);
         assert_eq!(tromso.fajr.format_hm(), "23:54");
     }
+
+    /// libmuslim 2026.08.20 stopped reporting asr where the Sun casts no
+    /// shadow. At Longyearbyen there is a narrow band, four days a year, where
+    /// the separation from the declination sits between 90 and 90.833 degrees:
+    /// the Sun is visible only by refraction, so sunrise exists and fajr,
+    /// maghrib and isha all resolve, but no shadow is cast.
+    ///
+    /// This crate fails the whole calculation when any field is non-finite, so
+    /// those days now return `NonFiniteResult("asr")` rather than the artifact
+    /// the C library used to produce. Four valid times are withheld with it,
+    /// which is the same shape as the dhuha problem that libmuslim#63 solved
+    /// upstream by removing the field. Pinned here so the behaviour is a
+    /// decision on record rather than an accident.
+    #[test]
+    fn asr_that_cannot_exist_fails_the_day_rather_than_inventing_a_time() {
+        let mwl = MethodParams::for_method(CalculationMethod::Mwl).unwrap();
+        let place = Coordinates::new(78.22, 15.65).unwrap();
+        let offset = UtcOffset::from_hours(1.0).unwrap();
+
+        let refraction_only = calculate(Date::new(2026, 2, 16).unwrap(), place, offset, &mwl);
+        assert_eq!(refraction_only, Err(Error::NonFiniteResult("asr")));
+
+        // The solstices are the polar case proper, where the reference
+        // latitude supplies a real shadow and the day resolves.
+        for (month, day) in [(6, 21), (12, 21)] {
+            let t = calculate(Date::new(2026, month, day).unwrap(), place, offset, &mwl)
+                .expect("the polar case resolves through the reference latitude");
+            assert!(t.asr.decimal_hours().is_finite());
+        }
+    }
 }

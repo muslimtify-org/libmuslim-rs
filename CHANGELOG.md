@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Synced the vendored `prayertimes.h` to `v0.2.1`, libmuslim release `2026.08.20`, which carries three high-latitude fixes. Prayers no longer come back out of order inside the polar circle, where the previous release reported isha before maghrib on 41 days a year at Longyearbyen under MWL ([libmuslim#68](https://github.com/muslimtify-org/libmuslim/pull/68)). asr is no longer reported where the Sun casts no shadow, which had returned a formula artifact as a prayer time at 2926 points of a 40810 point grid ([libmuslim#69](https://github.com/muslimtify-org/libmuslim/pull/69)). The substituted isha is anchored on maghrib rather than sunset, removing the last case where it could precede maghrib ([libmuslim#70](https://github.com/muslimtify-org/libmuslim/pull/70)).
+
+### Changed
+
+- **Behaviour.** `calculate` now returns `Error::NonFiniteResult("asr")` on a narrow band of days where it previously returned times. At Longyearbyen that is four days a year, where the separation from the declination sits between 90 and 90.833 degrees: the Sun is visible only by refraction, so sunrise exists and fajr, maghrib and isha all resolve, but no shadow is cast and asr does not occur. Previously the C library returned an artifact there and this crate passed it through as a real time.
+
+  This crate fails the whole calculation when any field is non-finite, so four valid times are withheld along with the impossible one. That is the same shape as the dhuha problem libmuslim#63 solved upstream by removing the field, and it is pinned by a test rather than left to chance. Whether `asr` should become an `Option` is open.
+
 ### Added
 
 - `HighLatMethod` and two `MethodParams` fields, `high_lat_method` and
