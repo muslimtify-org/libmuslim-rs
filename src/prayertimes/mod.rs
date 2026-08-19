@@ -54,8 +54,6 @@ pub mod constants {
     pub const OBLIQUITY_RATE: f64 = 0.00000036;
     /// Atmospheric refraction correction in degrees.
     pub const REFRACTION_CORRECTION: f64 = 0.833;
-    /// Solar altitude used for Dhuha in degrees.
-    pub const DHUHA_ALTITUDE: f64 = 4.3;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -758,24 +756,14 @@ impl PrayerTime {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-/// The seven prayer-related times returned by a calculation.
+/// The five prescribed prayer times returned by a calculation.
+///
+/// Sunrise and dhuha were removed in prayertimes.h v0.2.0. Sunrise is the end
+/// of the fajr window rather than a prayer, and dhuha is a voluntary prayer
+/// carried only by Indonesian timetables.
 pub struct PrayerTimes {
     /// Fajr time.
     pub fajr: PrayerTime,
-    /// Sunrise time.
-    pub sunrise: PrayerTime,
-    /// Dhuha time.
-    /// Dhuha, when it occurs.
-    ///
-    /// `None` above roughly 62.5 degrees of latitude on days when the Sun never
-    /// reaches the dhuha altitude. Dhuha is not one of the prescribed prayers
-    /// and no calculation authority publishes a high-latitude substitution for
-    /// it, so libmuslim reports no time rather than inventing one.
-    ///
-    /// This is an `Option` rather than an error so that a missing dhuha cannot
-    /// withhold the five prescribed times, which do resolve at those latitudes
-    /// for any method carrying a reference latitude.
-    pub dhuha: Option<PrayerTime>,
     /// Dhuhr time.
     pub dhuhr: PrayerTime,
     /// Asr time.
@@ -824,8 +812,6 @@ pub fn calculate(
 
     Ok(PrayerTimes {
         fajr: PrayerTime::from_result(raw.fajr, "fajr")?,
-        sunrise: PrayerTime::from_result(raw.sunrise, "sunrise")?,
-        dhuha: PrayerTime::from_result(raw.dhuha, "dhuha").ok(),
         dhuhr: PrayerTime::from_result(raw.dhuhr, "dhuhr")?,
         asr: PrayerTime::from_result(raw.asr, "asr")?,
         maghrib: PrayerTime::from_result(raw.maghrib, "maghrib")?,
@@ -922,14 +908,6 @@ mod tests {
         let safe = calculate(date, coordinates, utc_offset, params).unwrap();
 
         assert_eq!(safe.fajr.decimal_hours().to_bits(), raw.fajr.to_bits());
-        assert_eq!(
-            safe.sunrise.decimal_hours().to_bits(),
-            raw.sunrise.to_bits()
-        );
-        assert_eq!(
-            safe.dhuha.unwrap().decimal_hours().to_bits(),
-            raw.dhuha.to_bits()
-        );
         assert_eq!(safe.dhuhr.decimal_hours().to_bits(), raw.dhuhr.to_bits());
         assert_eq!(safe.asr.decimal_hours().to_bits(), raw.asr.to_bits());
         assert_eq!(
@@ -937,11 +915,6 @@ mod tests {
             raw.maghrib.to_bits()
         );
         assert_eq!(safe.isha.decimal_hours().to_bits(), raw.isha.to_bits());
-
-        assert_eq!(
-            safe.dhuha.unwrap().decimal_hours().to_bits(),
-            raw.dhuha.to_bits()
-        );
     }
 
     #[test]
@@ -1019,9 +992,6 @@ mod tests {
             }),
             (constants::REFRACTION_CORRECTION, unsafe {
                 ffi::abi_constant_refraction_correction()
-            }),
-            (constants::DHUHA_ALTITUDE, unsafe {
-                ffi::abi_constant_dhuha_altitude()
             }),
         ];
 
@@ -1310,7 +1280,6 @@ mod tests {
         let t = calculate(date, place, offset, &mwl).expect("MWL resolves at Longyearbyen");
         for hours in [
             t.fajr.decimal_hours(),
-            t.sunrise.decimal_hours(),
             t.maghrib.decimal_hours(),
             t.isha.decimal_hours(),
         ] {

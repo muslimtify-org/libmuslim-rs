@@ -44,8 +44,6 @@ size_t abi_offsetof_method_params_ihtiyat(void) { return offsetof(MethodParams, 
 size_t abi_sizeof_prayer_times(void) { return sizeof(struct PrayerTimes); }
 size_t abi_alignof_prayer_times(void) { return _Alignof(struct PrayerTimes); }
 size_t abi_offsetof_prayer_times_fajr(void) { return offsetof(struct PrayerTimes, fajr); }
-size_t abi_offsetof_prayer_times_sunrise(void) { return offsetof(struct PrayerTimes, sunrise); }
-size_t abi_offsetof_prayer_times_dhuha(void) { return offsetof(struct PrayerTimes, dhuha); }
 size_t abi_offsetof_prayer_times_dhuhr(void) { return offsetof(struct PrayerTimes, dhuhr); }
 size_t abi_offsetof_prayer_times_asr(void) { return offsetof(struct PrayerTimes, asr); }
 size_t abi_offsetof_prayer_times_maghrib(void) { return offsetof(struct PrayerTimes, maghrib); }
@@ -63,7 +61,6 @@ double abi_constant_sun_eccentricity_amplitude2(void) { return SUN_ECCENTRICITY_
 double abi_constant_obliquity_coeff(void) { return OBLIQUITY_COEFF; }
 double abi_constant_obliquity_rate(void) { return OBLIQUITY_RATE; }
 double abi_constant_refraction_correction(void) { return REFRACTION_CORRECTION; }
-double abi_constant_dhuha_altitude(void) { return DHUHA_ALTITUDE; }
 
 long abi_days_from_civil(int y, int m, int d) {
   return mt_days_from_civil(y, m, d);

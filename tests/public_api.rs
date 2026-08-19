@@ -25,10 +25,8 @@ fn external_consumer_can_use_the_complete_safe_surface() {
     params.validate().unwrap();
 
     let times: PrayerTimes = calculate(date, coordinates, offset, &params).unwrap();
-    let values: [PrayerTime; 7] = [
+    let values: [PrayerTime; 5] = [
         times.fajr,
-        times.sunrise,
-        times.dhuha.expect("Jakarta has a dhuha time"),
         times.dhuhr,
         times.asr,
         times.maghrib,
@@ -37,5 +35,5 @@ fn external_consumer_can_use_the_complete_safe_surface() {
     assert!(values.iter().all(|time| time.decimal_hours().is_finite()));
     assert!(values.iter().all(|time| time.format_hm().len() == 5));
 
-    assert_eq!(constants::DHUHA_ALTITUDE, 4.3);
+    assert_eq!(constants::REFRACTION_CORRECTION, 0.833);
 }
