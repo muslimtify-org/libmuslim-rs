@@ -1311,4 +1311,42 @@ mod tests {
         p.high_lat_reference_latitude = 0.0;
         assert!(p.validate().is_ok());
     }
+
+    /// The C library returns a decimal hour below 0 or at or above 24 when an
+    /// event falls on an adjacent day, and `decimal_hours` is the only thing
+    /// carrying that offset. `hour`, `minute` and `format_hm` all reduce onto
+    /// the clock face, because a clock cannot express a date. A caller building
+    /// an instant must use `decimal_hours` and keep the whole value.
+    #[test]
+    fn decimal_hours_keeps_the_day_offset_that_the_clock_face_discards() {
+        let mwl = MethodParams::for_method(CalculationMethod::Mwl).unwrap();
+
+        // Reykjavik, 2025-04-07, UTC. C returns isha = 24.134988.
+        let reykjavik = calculate(
+            Date::new(2025, 4, 7).unwrap(),
+            Coordinates::new(64.15, -21.94).unwrap(),
+            UtcOffset::from_hours(0.0).unwrap(),
+            &mwl,
+        )
+        .unwrap();
+        let isha = reykjavik.isha.decimal_hours();
+        assert!(isha >= 24.0, "expected an hour past the day, got {isha}");
+        assert!((isha - 24.134_988).abs() < 1e-5, "got {isha}");
+        assert_eq!(reykjavik.isha.hour(), 0);
+        assert_eq!(reykjavik.isha.format_hm(), "00:09");
+
+        // Tromso, 2025-05-17, UTC+1. C returns fajr = -0.104232.
+        let tromso = calculate(
+            Date::new(2025, 5, 17).unwrap(),
+            Coordinates::new(69.65, 18.96).unwrap(),
+            UtcOffset::from_hours(1.0).unwrap(),
+            &mwl,
+        )
+        .unwrap();
+        let fajr = tromso.fajr.decimal_hours();
+        assert!(fajr < 0.0, "expected an hour before the day, got {fajr}");
+        assert!((fajr + 0.104_232).abs() < 1e-5, "got {fajr}");
+        assert_eq!(tromso.fajr.hour(), 23);
+        assert_eq!(tromso.fajr.format_hm(), "23:54");
+    }
 }
