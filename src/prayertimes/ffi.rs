@@ -80,8 +80,6 @@ pub(crate) struct MethodParams {
 #[derive(Clone, Copy)]
 pub(crate) struct PrayerTimes {
     pub(crate) fajr: c_double,
-    pub(crate) sunrise: c_double,
-    pub(crate) dhuha: c_double,
     pub(crate) dhuhr: c_double,
     pub(crate) asr: c_double,
     pub(crate) maghrib: c_double,
@@ -119,7 +117,6 @@ unsafe extern "C" {
     pub(crate) fn abi_constant_obliquity_coeff() -> c_double;
     pub(crate) fn abi_constant_obliquity_rate() -> c_double;
     pub(crate) fn abi_constant_refraction_correction() -> c_double;
-    pub(crate) fn abi_constant_dhuha_altitude() -> c_double;
     pub(crate) fn abi_days_from_civil(year: c_int, month: c_int, day: c_int) -> c_long;
     pub(crate) fn abi_civil_from_days(
         days: c_long,
@@ -149,8 +146,6 @@ mod tests {
         fn abi_sizeof_prayer_times() -> usize;
         fn abi_alignof_prayer_times() -> usize;
         fn abi_offsetof_prayer_times_fajr() -> usize;
-        fn abi_offsetof_prayer_times_sunrise() -> usize;
-        fn abi_offsetof_prayer_times_dhuha() -> usize;
         fn abi_offsetof_prayer_times_dhuhr() -> usize;
         fn abi_offsetof_prayer_times_asr() -> usize;
         fn abi_offsetof_prayer_times_maghrib() -> usize;
@@ -206,14 +201,6 @@ mod tests {
         assert_layout(
             offset_of!(PrayerTimes, fajr),
             abi_offsetof_prayer_times_fajr,
-        );
-        assert_layout(
-            offset_of!(PrayerTimes, sunrise),
-            abi_offsetof_prayer_times_sunrise,
-        );
-        assert_layout(
-            offset_of!(PrayerTimes, dhuha),
-            abi_offsetof_prayer_times_dhuha,
         );
         assert_layout(
             offset_of!(PrayerTimes, dhuhr),

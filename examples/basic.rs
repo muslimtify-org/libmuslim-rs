@@ -9,13 +9,6 @@ use libmuslim::timezone::offset_at;
 fn print_times(label: &str, times: &PrayerTimes) {
     println!("{label}");
     println!("  Fajr:    {}", times.fajr.format_hm());
-    println!("  Sunrise: {}", times.sunrise.format_hm());
-    // Dhuha is optional: above roughly 62.5 degrees there are days when the Sun
-    // never reaches its altitude, and no authority publishes a substitute.
-    match times.dhuha {
-        Some(t) => println!("  Dhuha:   {}", t.format_hm()),
-        None => println!("  Dhuha:   does not occur"),
-    }
     println!("  Dhuhr:   {}", times.dhuhr.format_hm());
     println!("  Asr:     {}", times.asr.format_hm());
     println!("  Maghrib: {}", times.maghrib.format_hm());

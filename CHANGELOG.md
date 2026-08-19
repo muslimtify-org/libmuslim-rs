@@ -17,15 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking.** `PrayerTimes::dhuha` is now `Option<PrayerTime>`. It was a
-  `PrayerTime`, and a non-finite dhuha failed the whole calculation with
-  `Error::NonFiniteResult`. That withheld the five prescribed times over any
-  location where only dhuha was unavailable, which above roughly 62.5 degrees
-  is most of the summer. Dhuha is not a prescribed prayer and no authority
-  publishes a high-latitude substitution for it, so it is absent rather than
-  erroneous. At Longyearbyen on the solstice under MWL, fajr, sunrise, maghrib
-  and isha now return times where the call previously returned
-  `NonFiniteResult("dhuha")`.
+- **Breaking.** `PrayerTimes` carries the five prescribed prayers only. `sunrise` and `dhuha` are removed, along with `constants::DHUHA_ALTITUDE`. Sunrise is the end of the fajr window rather than a prayer, and dhuha is a voluntary prayer carried only by Indonesian timetables. Both are still computed inside the C library, because maghrib is sunset and every high-latitude substitution measures the night between sunset and sunrise, but neither is part of the contract ([libmuslim#63](https://github.com/muslimtify-org/libmuslim/pull/63)).
+
+  This supersedes an earlier unreleased change in this same section that made `dhuha` an `Option<PrayerTime>`. That was the previous answer to a non-finite dhuha withholding the five prescribed times with `Error::NonFiniteResult`. Removing the field answers the same problem upstream, so the `Option` never shipped. Callers who read `times.sunrise` have no replacement in this crate.
 
 ### Fixed
 
