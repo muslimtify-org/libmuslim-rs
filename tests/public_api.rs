@@ -36,5 +36,4 @@ fn external_consumer_can_use_the_complete_safe_surface() {
     assert!(values.iter().all(|time| time.format_hm().len() == 5));
 
     assert_eq!(constants::REFRACTION_CORRECTION, 0.833);
-
 }
