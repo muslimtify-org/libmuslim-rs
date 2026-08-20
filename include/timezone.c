@@ -54,17 +54,20 @@ int muslim_timezone_zone_exists(const char *tz_name) {
   if (!muslim_zone_name_is_safe(tz_name))
     return 0;
 
-  const wchar_t *win_zone = muslim_iana_to_windows_zone(tz_name);
-  if (!win_zone)
+  if (!muslim_iana_to_windows_zone(tz_name))
     return 0;
 
-  DYNAMIC_TIME_ZONE_INFORMATION dtzi;
-  DWORD idx = 0;
-  while (EnumDynamicTimeZoneInformation(idx++, &dtzi) == ERROR_SUCCESS) {
-    if (wcscmp(dtzi.TimeZoneKeyName, win_zone) == 0)
-      return 1;
-  }
-  return 0;
+  /* This used to run its own EnumDynamicTimeZoneInformation loop, which reads
+     the registry, so every lookup paid for two full enumerations: one here and
+     one inside parse_timezone_offset. libmuslim#64 fixed the second by
+     enumerating once for the whole table, and leaving this one would have kept
+     the cost at 41 ms per call regardless.
+     
+     Asking parse_timezone_offset directly is also more honest about what this
+     function claims. A zone "exists" here exactly when an offset can be
+     resolved for it, and that is the one place that knows. */
+  double ignored;
+  return parse_timezone_offset(tz_name, 0, &ignored) == 0 ? 1 : 0;
 }
 
 #else /* !_WIN32 */

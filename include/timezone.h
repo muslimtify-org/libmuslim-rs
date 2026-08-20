@@ -25,6 +25,12 @@
 /*
  * timezone.h -- v0.1.0 -- optional DST-aware timezone helper for libmuslim
  *
+ * The version above is this file's own. It is not the libmuslim release
+ * tag, which is a calendar date such as 2026.08.18 and covers a snapshot
+ * of several independently versioned headers. A difference between the
+ * two is expected. Use this number for compatibility, the release tag to
+ * pin a download.
+ *
  * `prayertimes.h` is pure astronomy: it takes a numeric UTC offset and does
  * math. It does NOT know about DST, because DST is a political rule, not an
  * astronomical one. This header is the optional companion that resolves the
@@ -585,17 +591,6 @@ static const MuslimIanaWinPair MUSLIM_IANA_TO_WIN[] = {
     {"Pacific/Tongatapu", L"Tonga Standard Time"},
 };
 
-static const wchar_t *muslim_iana_to_windows_zone(const char *tz_name) {
-  if (!tz_name)
-    return NULL;
-  for (size_t i = 0;
-       i < sizeof(MUSLIM_IANA_TO_WIN) / sizeof(MUSLIM_IANA_TO_WIN[0]); ++i) {
-    if (strcmp(MUSLIM_IANA_TO_WIN[i].iana, tz_name) == 0)
-      return MUSLIM_IANA_TO_WIN[i].win;
-  }
-  return NULL;
-}
-
 static const char *muslim_windows_zone_to_iana(const wchar_t *win_zone) {
   if (!win_zone)
     return NULL;
@@ -607,25 +602,99 @@ static const char *muslim_windows_zone_to_iana(const wchar_t *win_zone) {
   return NULL;
 }
 
+/* EnumDynamicTimeZoneInformation reads the registry, and the loop below used
+   to run per call, from index 0, for every prayer time computed. Measured in
+   libmuslim-rs CI, that was 41 ms per lookup against roughly 6 microseconds
+   for the POSIX path, and one test making 100000 lookups took 68 minutes on
+   Windows against 0.65 seconds on Linux. See issue #64.
+
+   The enumeration is now done once for the whole table rather than once per
+   call. The mapping from an IANA name to a Windows key is fixed at compile
+   time, so a single pass can fill every entry, and a lookup afterwards is an
+   array index.
+
+   InitOnceExecuteOnce rather than a mutex or a check-then-fill: it is the
+   Windows primitive for exactly this, it runs the callback once no matter how
+   many threads arrive together, and it publishes the result with the
+   necessary barriers. That matters because parse_timezone_offset is called
+   concurrently, which is what issue #41 was about, and a cache is shared
+   mutable state where there was none before. */
+static DYNAMIC_TIME_ZONE_INFORMATION
+    muslim_tz_table[sizeof(MUSLIM_IANA_TO_WIN) / sizeof(MUSLIM_IANA_TO_WIN[0])];
+static char muslim_tz_table_found[sizeof(MUSLIM_IANA_TO_WIN) /
+                                  sizeof(MUSLIM_IANA_TO_WIN[0])];
+static INIT_ONCE muslim_tz_table_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK muslim_tz_table_init(PINIT_ONCE once, PVOID param,
+                                          PVOID *context) {
+  (void)once;
+  (void)param;
+  (void)context;
+  const size_t count =
+      sizeof(MUSLIM_IANA_TO_WIN) / sizeof(MUSLIM_IANA_TO_WIN[0]);
+  DYNAMIC_TIME_ZONE_INFORMATION dtzi;
+  DWORD idx = 0;
+  while (EnumDynamicTimeZoneInformation(idx++, &dtzi) == ERROR_SUCCESS) {
+    /* Several IANA names can share one Windows zone, so this does not stop at
+       the first match. */
+    for (size_t i = 0; i < count; ++i) {
+      if (!muslim_tz_table_found[i] &&
+          wcscmp(dtzi.TimeZoneKeyName, MUSLIM_IANA_TO_WIN[i].win) == 0) {
+        muslim_tz_table[i] = dtzi;
+        muslim_tz_table_found[i] = 1;
+      }
+    }
+  }
+  return TRUE;
+}
+
+/* Index into MUSLIM_IANA_TO_WIN, or -1. */
+static int muslim_iana_zone_index(const char *tz_name) {
+  if (!tz_name)
+    return -1;
+  const size_t count =
+      sizeof(MUSLIM_IANA_TO_WIN) / sizeof(MUSLIM_IANA_TO_WIN[0]);
+  for (size_t i = 0; i < count; ++i) {
+    if (strcmp(MUSLIM_IANA_TO_WIN[i].iana, tz_name) == 0)
+      return (int)i;
+  }
+  return -1;
+}
+
+/* The Windows key for an IANA name, or NULL.
+ *
+ * parse_timezone_offset no longer needs this, since it works from the index,
+ * but it is part of what this header offers a consumer that includes it: this
+ * is a single-header library, so a caller's translation unit sees these
+ * helpers and libmuslim-rs uses this one in its own timezone shim. Removing it
+ * broke that build with an unresolved symbol at link time, which neither this
+ * repository's Linux tests nor its Windows job caught, because nothing here
+ * calls it.
+ *
+ * The unused marker is what keeps -Wall -Wextra quiet about a function this
+ * repository does not itself call. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
+static const wchar_t *
+muslim_iana_to_windows_zone(const char *tz_name) {
+  int index = muslim_iana_zone_index(tz_name);
+  return index < 0 ? NULL : MUSLIM_IANA_TO_WIN[index].win;
+}
+
 int parse_timezone_offset(const char *tz_name, time_t when, double *out) {
   if (!out)
     return -1;
-  const wchar_t *win_zone = muslim_iana_to_windows_zone(tz_name);
-  if (!win_zone)
+  int zone_index = muslim_iana_zone_index(tz_name);
+  if (zone_index < 0)
     return -1;
 
-  // Find the DYNAMIC_TIME_ZONE_INFORMATION whose key matches.
-  DYNAMIC_TIME_ZONE_INFORMATION dtzi;
-  DWORD idx = 0;
-  int found = 0;
-  while (EnumDynamicTimeZoneInformation(idx++, &dtzi) == ERROR_SUCCESS) {
-    if (wcscmp(dtzi.TimeZoneKeyName, win_zone) == 0) {
-      found = 1;
-      break;
-    }
-  }
-  if (!found)
+  if (!InitOnceExecuteOnce(&muslim_tz_table_once, muslim_tz_table_init, NULL,
+                           NULL))
     return -1;
+  if (!muslim_tz_table_found[zone_index])
+    return -1;
+  DYNAMIC_TIME_ZONE_INFORMATION dtzi = muslim_tz_table[zone_index];
 
   // time_t (Unix epoch seconds, UTC) -> FILETIME (100ns ticks since
   // 1601-01-01). 11644473600 seconds separate 1601-01-01 from 1970-01-01.

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Synced the vendored `timezone.h` to libmuslim `cdbcc22`, which enumerates the Windows timezone registry once for the whole table rather than on every call to `parse_timezone_offset`. That lookup cost 41 ms on Windows against roughly 6 microseconds on Linux, and a Windows runner now measures 0.0255 ms ([libmuslim#64](https://github.com/muslimtify-org/libmuslim/issues/64)).
+
+- `concurrent_lookups_of_different_zones_stay_correct` is back to 50000 iterations on every platform. It had been cut to 500 on Windows in #14 purely to stop CI spending 68 minutes on the upstream defect, and that workaround is no longer needed.
+
+### Fixed
+
 - Synced the vendored `prayertimes.h` to `v0.2.1`, libmuslim release `2026.08.20`, which carries three high-latitude fixes. Prayers no longer come back out of order inside the polar circle, where the previous release reported isha before maghrib on 41 days a year at Longyearbyen under MWL ([libmuslim#68](https://github.com/muslimtify-org/libmuslim/pull/68)). asr is no longer reported where the Sun casts no shadow, which had returned a formula artifact as a prayer time at 2926 points of a 40810 point grid ([libmuslim#69](https://github.com/muslimtify-org/libmuslim/pull/69)). The substituted isha is anchored on maghrib rather than sunset, removing the last case where it could precede maghrib ([libmuslim#70](https://github.com/muslimtify-org/libmuslim/pull/70)).
 
 ### Changed

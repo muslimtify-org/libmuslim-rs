@@ -64,16 +64,14 @@ fn concurrent_lookups_of_different_zones_stay_correct() {
     // reproduction lives upstream, next to the code that was racing. What this
     // catches is a shim that reintroduces process-global state now that
     // nothing on the Rust side is serializing it.
-    // Windows pays about 41 ms per lookup, because parse_timezone_offset
-    // re-enumerates the timezone registry on every call, so 50_000 iterations
-    // take 68 minutes there against 0.65 seconds on Linux. That is tracked as
-    // muslimtify-org/libmuslim#64. Fewer iterations lose nothing here: this
-    // test looks for reintroduced process-global state, and a 41 ms call
-    // leaves a far wider interleaving window than a 6 microsecond one, so
-    // Windows needs fewer attempts to expose the same fault, not more.
-    #[cfg(windows)]
-    const ITERATIONS: usize = 500;
-    #[cfg(not(windows))]
+    // Windows used to pay about 41 ms per lookup, because
+    // parse_timezone_offset re-enumerated the timezone registry on every call,
+    // so this test took 68 minutes there against 0.65 seconds on Linux. That
+    // was libmuslim#64, fixed upstream by enumerating once for the whole
+    // table, and the vendored header in this commit carries the fix. The
+    // measured rate on a Windows runner is now 0.0255 ms per lookup, so the
+    // reduced iteration count this test carried in the meantime is no longer
+    // needed and every platform is back on the same number.
     const ITERATIONS: usize = 50_000;
     let cases = [("America/New_York", -5.0), ("Asia/Jakarta", 7.0)];
 
