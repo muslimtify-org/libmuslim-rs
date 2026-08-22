@@ -1321,7 +1321,7 @@ mod tests {
     fn decimal_hours_keeps_the_day_offset_that_the_clock_face_discards() {
         let mwl = MethodParams::for_method(CalculationMethod::Mwl).unwrap();
 
-        // Reykjavik, 2025-04-07, UTC. C returns isha = 24.134988.
+        // Reykjavik, 2025-04-07, UTC. C returns isha = 24.135902.
         let reykjavik = calculate(
             Date::new(2025, 4, 7).unwrap(),
             Coordinates::new(64.15, -21.94).unwrap(),
@@ -1331,23 +1331,31 @@ mod tests {
         .unwrap();
         let isha = reykjavik.isha.decimal_hours();
         assert!(isha >= 24.0, "expected an hour past the day, got {isha}");
-        assert!((isha - 24.134_988).abs() < 1e-5, "got {isha}");
+        assert!((isha - 24.135_902).abs() < 1e-5, "got {isha}");
         assert_eq!(reykjavik.isha.hour(), 0);
         assert_eq!(reykjavik.isha.format_hm(), "00:09");
 
-        // Tromso, 2025-05-17, UTC+1. C returns fajr = -0.104232.
-        let tromso = calculate(
-            Date::new(2025, 5, 17).unwrap(),
-            Coordinates::new(69.65, 18.96).unwrap(),
-            UtcOffset::from_hours(1.0).unwrap(),
+        // Alert, 2026-09-06, UTC-5. C returns fajr = -0.649757.
+        //
+        // This was Tromso, 2025-05-17, until libmuslim 2026.08.22. There the
+        // margin was six minutes of negative hour and it came from a twilight
+        // crossing the old solver reported on a day that has none, so fixing
+        // libmuslim#79 moved fajr to +2.043258 and the case stopped exercising
+        // this path at all. Alert is the most negative fajr any settlement
+        // sees in 2026, thirty-nine minutes, and it predates the fix: v0.2.1
+        // returned -0.658336 for the same call.
+        let alert = calculate(
+            Date::new(2026, 9, 6).unwrap(),
+            Coordinates::new(82.50, -62.35).unwrap(),
+            UtcOffset::from_hours(-5.0).unwrap(),
             &mwl,
         )
         .unwrap();
-        let fajr = tromso.fajr.decimal_hours();
+        let fajr = alert.fajr.decimal_hours();
         assert!(fajr < 0.0, "expected an hour before the day, got {fajr}");
-        assert!((fajr + 0.104_232).abs() < 1e-5, "got {fajr}");
-        assert_eq!(tromso.fajr.hour(), 23);
-        assert_eq!(tromso.fajr.format_hm(), "23:54");
+        assert!((fajr + 0.649_757).abs() < 1e-5, "got {fajr}");
+        assert_eq!(alert.fajr.hour(), 23);
+        assert_eq!(alert.fajr.format_hm(), "23:22");
     }
 
     /// libmuslim 2026.08.20 stopped reporting asr where the Sun casts no
