@@ -23,7 +23,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-libmuslim-rs = "0.3.0"
+libmuslim-rs = "0.3.1"
 ```
 
 or run this command in your terminal:
